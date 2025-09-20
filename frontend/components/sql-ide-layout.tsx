@@ -27,7 +27,6 @@ interface Message {
   type: 'user' | 'assistant'
   content: string
   timestamp: Date
-  sql?: string
   execution_result?: ExecuteQueryResponse
 }
 
@@ -71,13 +70,12 @@ export function SqlIdeLayout() {
     setGeneratedQuery(query)
     setHasQuery(true)
     
-    // Add to conversation
+    // Add to conversation - simpler message without showing SQL
     const newMessage: Message = {
       id: Date.now().toString(),
       type: 'assistant',
       content: 'I\'ve generated the SQL query for you. You can review and edit it in the code editor, then execute it.',
-      timestamp: new Date(),
-      sql: query
+      timestamp: new Date()
     }
     setMessages(prev => [...prev, newMessage])
   }
@@ -198,7 +196,7 @@ export function SqlIdeLayout() {
   }
 
   return (
-    <div className="h-screen flex bg-background">
+    <div className="h-screen flex bg-background overflow-hidden">
       {/* Sidebar - 20% width */}
       <div className="w-1/7 bg-card border-r border-border flex flex-col">
         {/* Brand Header */}
@@ -296,6 +294,7 @@ export function SqlIdeLayout() {
                   </h3>
                 </div>
                 
+                {/* Messages - flexible height */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                   {messages.map((message) => (
                     <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -313,8 +312,8 @@ export function SqlIdeLayout() {
                   ))}
                 </div>
                 
-                {/* Follow-up Query Input */}
-                <div className="p-4 border-t border-border flex-shrink-0">
+                {/* Follow-up Query Input - fixed at bottom */}
+                <div className="p-2 border-t border-border flex-shrink-0">
                   <AiPromptInterface
                     onNewQuery={async (prompt: string) => {
                       // Add user message to conversation
@@ -350,8 +349,7 @@ export function SqlIdeLayout() {
                             id: Date.now().toString(),
                             type: 'assistant',
                             content: response.explanation || 'I\'ve updated the SQL query based on your request. You can review it in the SQL Query Editor.',
-                            timestamp: new Date(),
-                            sql: response.sql
+                            timestamp: new Date()
                           }
                           setMessages(prev => [...prev, assistantMessage])
                         } else {

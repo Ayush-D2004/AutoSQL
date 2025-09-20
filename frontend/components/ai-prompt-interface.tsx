@@ -14,13 +14,6 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { generateQuery, type AIQueryResponse } from "@/lib/api"
 
-const suggestionChips = [
-  { icon: Database, text: "Create table", prompt: "Create a table for storing user information" },
-  { icon: BarChart, text: "Analyze data", prompt: "Show me the top 10 customers by revenue" },
-  { icon: Zap, text: "Optimize query", prompt: "Optimize this query for better performance" },
-  { icon: Database, text: "Join tables", prompt: "Join users and orders tables" },
-]
-
 interface AiPromptInterfaceProps {
   onQueryGenerated?: (query: string) => void
   onQueryExecuted?: (result: AIQueryResponse) => void
@@ -75,10 +68,6 @@ export function AiPromptInterface({
     }
   }
 
-  const handleSuggestionClick = (suggestion: (typeof suggestionChips)[0]) => {
-    setPrompt(suggestion.prompt)
-  }
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
@@ -87,7 +76,7 @@ export function AiPromptInterface({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* AI Prompt Header */}
       <div className="flex items-center space-x-2">
         <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
@@ -98,14 +87,14 @@ export function AiPromptInterface({
 
       {/* Chat-like Input */}
       <Card className="bg-card/60 backdrop-blur-sm border-border shadow-sm">
-        <CardContent className="p-4">
-          <div className="space-y-4">
+        <CardContent className="p-3">
+          <div className="space-y-3">
             <Textarea
               placeholder={placeholder}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="min-h-[100px] resize-none bg-background/50 border-border focus:ring-primary/20"
+              className="min-h-[80px] resize-none bg-background/50 border-border focus:ring-primary/20"
               disabled={isGenerating || externalLoading}
             />
 
@@ -180,47 +169,6 @@ export function AiPromptInterface({
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Generated Query Preview */}
-      <AnimatePresence>
-        {generatedQuery && !isGenerating && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <Card className="bg-card/60 backdrop-blur-sm border-border shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium text-foreground">Generated Query</h4>
-                  <Badge variant="secondary" className="bg-secondary/20 text-secondary-foreground">
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    AI Generated
-                  </Badge>
-                </div>
-                <pre className="text-sm bg-muted/50 p-3 rounded-md overflow-x-auto font-mono text-foreground">
-                  {generatedQuery}
-                </pre>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Suggestion Chips */}
-      <div className="space-y-3">
-        <h4 className="text-sm font-medium text-foreground">Quick Suggestions</h4>
-        <div className="flex flex-wrap gap-2">
-          {suggestionChips.map((suggestion, index) => (
-            <motion.button
-              key={index}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleSuggestionClick(suggestion)}
-              className="flex items-center space-x-2 px-3 py-2 bg-muted/50 hover:bg-muted/80 rounded-full border border-border transition-colors"
-            >
-              <suggestion.icon className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-foreground">{suggestion.text}</span>
-            </motion.button>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }

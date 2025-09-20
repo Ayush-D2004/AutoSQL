@@ -33,7 +33,8 @@ export function SqlCodeEditor({
     const textarea = textareaRef.current
     if (textarea) {
       textarea.style.height = 'auto'
-      textarea.style.height = Math.min(textarea.scrollHeight, 400) + 'px'
+      // Minimum height of 300px, maximum of 500px
+      textarea.style.height = Math.max(300, Math.min(textarea.scrollHeight, 500)) + 'px'
     }
   }, [value])
 
@@ -163,7 +164,7 @@ export function SqlCodeEditor({
             onChange={(e) => onChange?.(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="font-mono resize-none min-h-[200px] focus:ring-2 focus:ring-blue-500"
+            className="font-mono resize-none min-h-[300px] focus:ring-2 focus:ring-blue-500"
             style={{
               height: isMaximized ? 'calc(100vh - 200px)' : 'auto'
             }}
