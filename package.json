@@ -1,0 +1,49 @@
+{
+  "name": "autosql-fullstack",
+  "version": "2.0.0",
+  "description": "AutoSQL - AI-powered SQL query processing platform with React frontend and Python backend",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && pnpm dev",
+    "dev:backend": "cd backend && autosql\\Scripts\\python.exe main.py",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && pnpm build",
+    "start": "concurrently \"npm run start:frontend\" \"npm run start:backend\"",
+    "start:frontend": "cd frontend && pnpm start",
+    "start:backend": "cd backend && autosql\\Scripts\\python.exe main.py",
+    "install:frontend": "cd frontend && pnpm install",
+    "install:backend": "cd backend && pip install -r requirements.txt",
+    "install:all": "npm run install:frontend && npm run install:backend",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "cd frontend && pnpm test",
+    "test:backend": "cd backend && python -m pytest",
+    "lint": "npm run lint:frontend && npm run lint:backend",
+    "lint:frontend": "cd frontend && pnpm lint",
+    "lint:backend": "cd backend && flake8 . && mypy ."
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.9.0"
+  },
+  "keywords": [
+    "sql",
+    "ai",
+    "gemini",
+    "langraph",
+    "react",
+    "nextjs",
+    "python",
+    "fastapi",
+    "database",
+    "query-generation"
+  ],
+  "author": "AutoSQL Team",
+  "license": "PRIVATE"
+}
