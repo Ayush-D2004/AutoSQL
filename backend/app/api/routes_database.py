@@ -16,6 +16,7 @@ import logging
 from ..database.sql_executor import db_executor, SQLExecutionResult
 from ..database.schema_inspector import schema_inspector
 from ..database.history_service import history_service
+from ..database.schema_visualizer import schema_visualizer
 from ..schemas.database_schemas import (
     ExecuteQueryRequest,
     ExecuteQueryResponse,
@@ -443,4 +444,35 @@ async def test_database_connection() -> Dict[str, Any]:
             "test_query_success": False,
             "error_message": str(e),
             "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@router.get("/schema/mermaid")
+async def get_mermaid_schema() -> Dict[str, Any]:
+    """
+    Generate Mermaid ER diagram from current database schema
+    
+    Returns:
+        Dictionary containing Mermaid diagram string and metadata
+    """
+    try:
+        mermaid_diagram = await schema_visualizer.schema_to_mermaid()
+        
+        # Check if we have actual tables or just error/empty state
+        has_tables = "erDiagram" in mermaid_diagram and "NO_TABLES" not in mermaid_diagram and "ERROR" not in mermaid_diagram
+        
+        return {
+            "mermaid": mermaid_diagram,
+            "has_tables": has_tables,
+            "generated_at": datetime.utcnow().isoformat(),
+            "message": "Schema diagram generated successfully" if has_tables else "No tables found in database"
+        }
+        
+    except Exception as e:
+        logger.error(f"Mermaid schema generation failed: {e}", exc_info=True)
+        return {
+            "mermaid": f"erDiagram\n    ERROR {{\n        string error \"Schema generation failed: {str(e)}\"\n    }}",
+            "has_tables": False,
+            "generated_at": datetime.utcnow().isoformat(),
+            "message": f"Schema generation failed: {str(e)}"
         }

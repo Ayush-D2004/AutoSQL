@@ -95,6 +95,13 @@ export interface ExecuteQueryResponse {
   table_results?: TableResult[]
 }
 
+export interface MermaidSchemaResponse {
+  mermaid: string
+  has_tables: boolean
+  generated_at: string
+  message: string
+}
+
 class APIClient {
   private baseUrl: string
 
@@ -181,6 +188,11 @@ class APIClient {
       body: JSON.stringify(request),
     })
   }
+
+  // Get database schema as Mermaid ER diagram
+  async getSchemaAsMermaid(): Promise<MermaidSchemaResponse> {
+    return this.request('/api/db/schema/mermaid')
+  }
 }
 
 // Create and export a singleton instance
@@ -195,3 +207,4 @@ export const executeQuery = (request: ExecuteQueryRequest) => apiClient.executeQ
 export const getConversationHistory = (sessionId: string, limit?: number) => apiClient.getConversationHistory(sessionId, limit)
 export const clearConversation = (sessionId: string) => apiClient.clearConversation(sessionId)
 export const enhanceCode = (request: EnhanceSQLRequest) => apiClient.enhanceCode(request)
+export const getSchemaAsMermaid = () => apiClient.getSchemaAsMermaid()

@@ -7,7 +7,7 @@ Provides a clean interface for database operations throughout the application.
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import MetaData, text
+from sqlalchemy import MetaData, text, create_engine
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 import logging
@@ -166,6 +166,29 @@ class DatabaseManager:
                 "status": "error",
                 "message": f"Database connection failed: {str(e)}"
             }
+    
+    def get_sync_engine(self):
+        """
+        Get synchronous engine for schema inspection
+        
+        Returns:
+            Synchronous SQLAlchemy engine for use with inspect()
+        """
+        if not self.is_connected:
+            raise RuntimeError("Database not initialized. Call initialize() first.")
+        
+        # Get the sync version of the database URL
+        db_url = settings.database_url
+        
+        # Create sync engine
+        sync_engine = create_engine(
+            db_url,
+            echo=settings.database_echo,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+        )
+        
+        return sync_engine
 
 
 # Global database manager instance

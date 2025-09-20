@@ -45,5 +45,8 @@
     "query-generation"
   ],
   "author": "AutoSQL Team",
-  "license": "PRIVATE"
+  "license": "PRIVATE",
+  "dependencies": {
+    "mermaid": "^11.12.0"
+  }
 }

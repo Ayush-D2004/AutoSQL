@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
 import { 
   Sparkles, 
   Database, 
@@ -11,7 +12,8 @@ import {
   Play,
   History,
   Settings,
-  Home
+  Home,
+  GitBranch
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -37,6 +39,7 @@ interface TableTab {
 }
 
 export function SqlIdeLayout() {
+  const router = useRouter()
   const [hasQuery, setHasQuery] = useState(false)
   const [generatedQuery, setGeneratedQuery] = useState("")
   const [queryResults, setQueryResults] = useState<ExecuteQueryResponse | null>(null)
@@ -218,6 +221,14 @@ export function SqlIdeLayout() {
             <Button variant="default" className="w-full justify-start">
               <Home className="h-4 w-4 mr-3" />
               Query Builder
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => router.push('/er-diagram')}
+            >
+              <GitBranch className="h-4 w-4 mr-3" />
+              ER Diagram
             </Button>
             <Button variant="ghost" className="w-full justify-start">
               <History className="h-4 w-4 mr-3" />
