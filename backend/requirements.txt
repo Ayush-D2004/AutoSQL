@@ -1,42 +1,23 @@
-# Core Web Framework
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 
-# Database (Core dependencies for Step 1)
 sqlalchemy[asyncio]>=2.0.0
-aiosqlite>=0.19.0  # SQLite async driver for initial setup
+aiosqlite>=0.19.0  
 
-# Configuration and Environment
 pydantic>=2.4.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
 
-# HTTP Client
 httpx>=0.25.0
 
-# Async Support
 anyio>=4.0.0
 
-# Development and Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 
-# AI Dependencies (Step 3)
 google-generativeai>=0.3.0
 langchain>=0.1.0
 langchain-google-genai>=0.0.5
 langgraph>=0.0.40
 
-# Future Database Drivers (will be uncommented when needed)
-# asyncpg>=0.29.0  # PostgreSQL async driver
-# aiomysql>=0.2.0  # MySQL async driver
-# alembic>=1.12.0  # Database migrations
-
-# Future Data Processing (will be uncommented when needed)
-# pandas>=2.1.0
-# numpy>=1.24.0
-
-# Future Additional Dependencies
-# structlog>=23.1.0  # Structured logging
-# redis>=5.0.0  # Cache support

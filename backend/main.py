@@ -17,7 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 import os
-from dotenv import load_dotenv
 
 # Import application modules
 from app.core.config import settings
@@ -27,9 +26,6 @@ from app.api import router as api_router
 
 # Import models to ensure they're registered with SQLAlchemy before table creation
 import app.models
-
-# Load environment variables
-load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -5,6 +5,10 @@ import os
 from typing import List, Any, Optional
 from pydantic_settings import BaseSettings
 from pydantic import AnyHttpUrl, ConfigDict
+from dotenv import load_dotenv
+
+# Load environment variables first
+load_dotenv()
 
 
 class Settings(BaseSettings):

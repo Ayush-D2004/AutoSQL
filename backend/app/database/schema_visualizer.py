@@ -61,31 +61,33 @@ class SchemaVisualizer:
                         col_name = column["name"]
                         col_type = str(column["type"]).upper()
                         
-                        # Handle common SQLite types
+                        # Handle common SQLite types and convert to Mermaid format
                         if "VARCHAR" in col_type:
-                            col_type = "VARCHAR"
+                            col_type = "string"
                         elif "INTEGER" in col_type:
-                            col_type = "INTEGER"
+                            col_type = "int"
                         elif "TEXT" in col_type:
-                            col_type = "TEXT"
+                            col_type = "string"
                         elif "REAL" in col_type or "FLOAT" in col_type:
-                            col_type = "REAL"
+                            col_type = "float"
                         elif "BLOB" in col_type:
-                            col_type = "BLOB"
+                            col_type = "blob"
                         elif "BOOLEAN" in col_type:
-                            col_type = "BOOLEAN"
+                            col_type = "boolean"
                         elif "DATE" in col_type:
-                            col_type = "DATE"
+                            col_type = "date"
                         elif "TIME" in col_type:
-                            col_type = "DATETIME"
+                            col_type = "datetime"
+                        else:
+                            col_type = "string"  # Default fallback
                         
                         # Check if it's a primary key
                         pk_flag = " PK" if col_name in pk_columns else ""
                         
                         # Check if nullable
-                        nullable_flag = "" if column.get("nullable", True) else " NOT_NULL"
+                        nullable_flag = "" if column.get("nullable", True) else ""
                         
-                        diagram += f"        {col_type} {col_name}{pk_flag}{nullable_flag}\n"
+                        diagram += f"        {col_type} {col_name}{pk_flag}\n"
                     
                     diagram += "    }\n"
                 

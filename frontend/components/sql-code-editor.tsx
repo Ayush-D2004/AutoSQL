@@ -113,92 +113,95 @@ export function SqlCodeEditor({
   }
 
   return (
-    <Card className={`${className} ${isMaximized ? 'fixed inset-4 z-50' : ''}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold">SQL Query Editor</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={copyToClipboard}
-              disabled={!value || !value.trim()}
+    <div className={`${className} ${isMaximized ? 'fixed inset-4 z-50' : ''} h-full flex flex-col`}>
+      <Card className="flex-1 flex flex-col">
+        <CardHeader className="pb-3 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold">SQL Query Editor</CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={copyToClipboard}
+                disabled={!value || !value.trim()}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={formatSQL}
+                disabled={!value || !value.trim()}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearEditor}
+                disabled={!value || !value.trim()}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMaximized(!isMaximized)}
+              >
+                {isMaximized ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 flex-1 flex flex-col pb-8">
+          <div className="relative flex-1">
+            <Textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e) => onChange?.(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              className="font-mono resize-none w-full h-full focus:ring-2 focus:ring-blue-500 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
+              style={{
+                minHeight: isMaximized ? 'calc(100vh - 200px)' : '300px',
+                height: isMaximized ? 'calc(100vh - 200px)' : 'auto'
+              }}
+            />
+            {value && value.trim() && (
+              <div className="absolute bottom-2 right-2 text-xs text-muted-foreground bg-background px-2 py-1 rounded border">
+                {value.trim().split('\n').length} lines • {value.length} chars
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center justify-between flex-shrink-0 pt-4">
+            <div className="text-sm text-muted-foreground">
+              Press <kbd className="px-2 py-1 text-xs font-mono bg-muted rounded">Ctrl + Enter</kbd> to execute
+            </div>
+            <Button 
+              onClick={onExecute}
+              disabled={!value || !value.trim() || isExecuting}
+              className="min-w-[100px]"
             >
-              <Copy className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={formatSQL}
-              disabled={!value || !value.trim()}
-            >
-              <FileText className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearEditor}
-              disabled={!value || !value.trim()}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsMaximized(!isMaximized)}
-            >
-              {isMaximized ? (
-                <Minimize2 className="h-4 w-4" />
+              {isExecuting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Running...
+                </>
               ) : (
-                <Maximize2 className="h-4 w-4" />
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  Execute
+                </>
               )}
             </Button>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="relative">
-          <Textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => onChange?.(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            className="font-mono resize-none min-h-[300px] focus:ring-2 focus:ring-blue-500"
-            style={{
-              height: isMaximized ? 'calc(100vh - 200px)' : 'auto'
-            }}
-          />
-          {value && value.trim() && (
-            <div className="absolute bottom-2 right-2 text-xs text-muted-foreground bg-background px-2 py-1 rounded border">
-              {value.trim().split('\n').length} lines • {value.length} chars
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Press <kbd className="px-2 py-1 text-xs font-mono bg-muted rounded">Ctrl + Enter</kbd> to execute
-          </div>
-          <Button 
-            onClick={onExecute}
-            disabled={!value || !value.trim() || isExecuting}
-            className="min-w-[100px]"
-          >
-            {isExecuting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Running...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-2" />
-                Execute
-              </>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

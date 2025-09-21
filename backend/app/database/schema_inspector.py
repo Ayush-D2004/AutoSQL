@@ -251,11 +251,11 @@ class SchemaInspector:
                     relationship = f"    {table.name} ||--o{{ {fk['referred_table']} : {fk['constrained_columns'][0]}"
                     mermaid_lines.append(relationship)
             
-            return "\\n".join(mermaid_lines)
+            return "\n".join(mermaid_lines)
             
         except Exception as e:
             logger.error(f"Mermaid ERD generation failed: {e}")
-            return f"erDiagram\\n    ERROR {{\\n        string error 'Schema generation failed'\\n    }}"
+            return f"erDiagram\n    ERROR {{\n        string error 'Schema generation failed'\n    }}"
     
     # Private helper methods
     async def _get_database_name(self, session: AsyncSession) -> str:

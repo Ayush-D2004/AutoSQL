@@ -56,7 +56,8 @@ export function AiPromptInterface({
       if (result.success && result.sql) {
         setGeneratedQuery(result.sql)
         onQueryGenerated?.(result.sql)
-        onQueryExecuted?.(result)
+        // Note: Not calling onQueryExecuted to prevent auto-execution
+        // Let user review the code and execute manually
       } else {
         setError(result.error || "Failed to generate query")
       }
@@ -76,44 +77,45 @@ export function AiPromptInterface({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 lg:space-y-3">
       {/* AI Prompt Header */}
       <div className="flex items-center space-x-2">
-        <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
-          <Sparkles className="h-4 w-4 text-primary" />
+        <div className="flex items-center justify-center w-6 h-6 lg:w-8 lg:h-8 bg-primary/10 rounded-full">
+          <Sparkles className="h-3 w-3 lg:h-4 lg:w-4 text-primary" />
         </div>
-        <h3 className="text-lg font-semibold text-foreground">AI SQL Generator</h3>
+        <h3 className="text-sm lg:text-lg font-semibold text-foreground">AI SQL Generator</h3>
       </div>
 
       {/* Chat-like Input */}
       <Card className="bg-card/60 backdrop-blur-sm border-border shadow-sm">
-        <CardContent className="p-3">
-          <div className="space-y-3">
+        <CardContent className="p-2 lg:p-3">
+          <div className="space-y-2 lg:space-y-3">
             <Textarea
               placeholder={placeholder}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="min-h-[80px] resize-none bg-background/50 border-border focus:ring-primary/20"
+              className="min-h-[60px] lg:min-h-[80px] resize-none bg-background/50 border-border focus:ring-primary/20 text-sm lg:text-base"
               disabled={isGenerating || externalLoading}
             />
 
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground">Press Cmd+Enter to generate</div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="text-xs text-muted-foreground order-2 sm:order-1">Press Cmd+Enter to generate</div>
               <Button
                 onClick={handleGenerate}
                 disabled={!prompt.trim() || isGenerating || externalLoading}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm lg:text-base order-1 sm:order-2"
+                size="sm"
               >
                 {(isGenerating || externalLoading) ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Generating...
+                    <Loader2 className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2 animate-spin" />
+                    <span>Generating...</span>
                   </>
                 ) : (
                   <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Generate SQL
+                    <Send className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                    <span>Generate SQL</span>
                   </>
                 )}
               </Button>

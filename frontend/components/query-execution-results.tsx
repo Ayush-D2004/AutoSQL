@@ -219,42 +219,44 @@ const TableDisplay: React.FC<TableDisplayProps> = ({
       </CardHeader>
       
       <CardContent className="p-0">
-        <div className={`overflow-auto border rounded-md ${isMaximized ? 'max-h-[80vh]' : 'max-h-96'}`}>
-          <Table>
-            <TableHeader className="sticky top-0 bg-background/95 backdrop-blur-sm">
-              <TableRow>
-                {tableResult.columns.map((column) => (
-                  <TableHead
-                    key={column}
-                    className="cursor-pointer hover:bg-muted/50 select-none"
-                    onClick={() => handleSort(column)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="truncate">{column}</span>
-                      {getSortIcon(column)}
-                    </div>
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedRows.map((row, rowIndex) => (
-                <TableRow key={rowIndex} className="hover:bg-muted/30">
+        <div className={`border rounded-md ${isMaximized ? 'max-h-[80vh]' : 'max-h-96'} overflow-hidden`}>
+          <div className="overflow-auto h-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <Table>
+              <TableHeader className="sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+                <TableRow>
                   {tableResult.columns.map((column) => (
-                    <TableCell key={column} className="font-mono text-xs">
-                      <div className="max-w-xs truncate" title={String(row[column] ?? "")}>
-                        {row[column] === null ? (
-                          <span className="text-muted-foreground italic">NULL</span>
-                        ) : (
-                          String(row[column])
-                        )}
+                    <TableHead
+                      key={column}
+                      className="cursor-pointer hover:bg-muted/50 select-none min-w-[120px] whitespace-nowrap"
+                      onClick={() => handleSort(column)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="truncate">{column}</span>
+                        {getSortIcon(column)}
                       </div>
-                    </TableCell>
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {paginatedRows.map((row, rowIndex) => (
+                  <TableRow key={rowIndex} className="hover:bg-muted/30">
+                    {tableResult.columns.map((column) => (
+                      <TableCell key={column} className="font-mono text-xs min-w-[120px]">
+                        <div className="max-w-xs truncate" title={String(row[column] ?? "")}>
+                          {row[column] === null ? (
+                            <span className="text-muted-foreground italic">NULL</span>
+                          ) : (
+                            String(row[column])
+                          )}
+                        </div>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </CardContent>
     </Card>

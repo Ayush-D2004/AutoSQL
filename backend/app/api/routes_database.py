@@ -274,29 +274,6 @@ async def get_table_schema(
         )
 
 
-@router.get("/schema/mermaid")
-async def get_mermaid_erd() -> Dict[str, str]:
-    """
-    Generate Mermaid.js Entity Relationship Diagram
-    
-    Returns Mermaid ERD syntax for frontend visualization
-    """
-    try:
-        mermaid_syntax = await schema_inspector.generate_mermaid_erd()
-        
-        return {
-            "mermaid_syntax": mermaid_syntax,
-            "generated_at": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Mermaid ERD generation failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"ERD generation failed: {str(e)}"
-        )
-
-
 @router.get("/history", response_model=QueryHistoryResponse)
 async def get_query_history(
     limit: int = Query(50, ge=1, le=1000, description="Maximum number of records"),

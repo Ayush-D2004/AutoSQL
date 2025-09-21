@@ -134,7 +134,8 @@ class SQLWorkflow:
         """
         try:
             logger.info("Getting database schema...")
-            schema = await schema_inspector.get_full_schema()
+            schema_obj = await schema_inspector.get_full_schema()
+            schema = schema_obj.to_dict()
             
             state["schema"] = schema
             state["messages"].append(AIMessage(content="Retrieved database schema"))
