@@ -16,7 +16,7 @@ import logging
 from ..database.sql_executor import db_executor, SQLExecutionResult
 from ..database.schema_inspector import schema_inspector
 from ..database.history_service import history_service
-from ..database.schema_visualizer import schema_visualizer
+from ..database.schema_visualizer import schema_visualizer, schema_to_mermaid_mindmap
 from ..schemas.database_schemas import (
     ExecuteQueryRequest,
     ExecuteQueryResponse,
@@ -46,12 +46,13 @@ async def execute_sql_query(
     - **auto_commit**: Whether to auto-commit transaction (default: True)
     """
     try:
-        # Use smart execution to handle single or multiple statements
+        # Use smart execution to handle single or multiple statements with auto-preprocessing
         results = await db_executor.execute_sql_smart(
             sql_text=request.sql,
             parameters=request.parameters,
             auto_commit=request.auto_commit,
-            safety_check=request.safety_check
+            safety_check=request.safety_check,
+            auto_preprocess=True  # Enable auto-preprocessing for clean table state
         )
         
         # Save all results to history if requested
@@ -436,13 +437,14 @@ async def get_mermaid_schema() -> Dict[str, Any]:
         mermaid_diagram = await schema_visualizer.schema_to_mermaid()
         
         # Check if we have actual tables or just error/empty state
-        has_tables = "erDiagram" in mermaid_diagram and "NO_TABLES" not in mermaid_diagram and "ERROR" not in mermaid_diagram
+        has_tables = "erDiagram" in mermaid_diagram and "NO_USER_TABLES" not in mermaid_diagram and "NO_TABLES" not in mermaid_diagram and "ERROR" not in mermaid_diagram
         
         return {
             "mermaid": mermaid_diagram,
             "has_tables": has_tables,
             "generated_at": datetime.utcnow().isoformat(),
-            "message": "Schema diagram generated successfully" if has_tables else "No tables found in database"
+            "message": "Schema diagram generated successfully" if has_tables else "No tables found in database",
+            "type": "er"
         }
         
     except Exception as e:
@@ -451,5 +453,39 @@ async def get_mermaid_schema() -> Dict[str, Any]:
             "mermaid": f"erDiagram\n    ERROR {{\n        string error \"Schema generation failed: {str(e)}\"\n    }}",
             "has_tables": False,
             "generated_at": datetime.utcnow().isoformat(),
-            "message": f"Schema generation failed: {str(e)}"
+            "message": f"Schema generation failed: {str(e)}",
+            "type": "er"
+        }
+
+
+@router.get("/schema/mindmap")
+async def get_mindmap_schema() -> Dict[str, Any]:
+    """
+    Generate Mermaid mindmap from current database schema
+    
+    Returns:
+        Dictionary containing Mermaid mindmap string and metadata
+    """
+    try:
+        mermaid_diagram = await schema_to_mermaid_mindmap()
+        
+        # Check if we have actual tables or just error/empty state
+        has_tables = "mindmap" in mermaid_diagram and "NO_TABLES" not in mermaid_diagram and "ERROR" not in mermaid_diagram
+        
+        return {
+            "mermaid": mermaid_diagram,
+            "has_tables": has_tables,
+            "generated_at": datetime.utcnow().isoformat(),
+            "message": "Schema mindmap generated successfully" if has_tables else "No tables found in database",
+            "type": "mindmap"
+        }
+        
+    except Exception as e:
+        logger.error(f"Mermaid mindmap generation failed: {e}", exc_info=True)
+        return {
+            "mermaid": f"mindmap\n  root((Database Schema))\n    ERROR[Schema generation failed: {str(e)}]",
+            "has_tables": False,
+            "generated_at": datetime.utcnow().isoformat(),
+            "message": f"Schema mindmap generation failed: {str(e)}",
+            "type": "mindmap"
         }

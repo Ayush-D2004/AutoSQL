@@ -19,6 +19,7 @@ import {
   Maximize2,
   Table as TableIcon,
   X,
+  GitBranch,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -56,6 +57,7 @@ interface QueryExecutionResultsProps {
   results?: AIQueryResponse | null
   onExecute?: (query: string) => void
   onOpenTableInNewTab?: (tableResult: TableResult) => void
+  onGenerateErDiagram?: () => void
 }
 
 interface TableDisplayProps {
@@ -126,6 +128,17 @@ const TableDisplay: React.FC<TableDisplayProps> = ({
   // Paginate data
   const paginatedRows = sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
+  // Debug: Log detailed row information
+  const [lastDebugHash, setLastDebugHash] = useState('')
+  React.useEffect(() => {
+    const currentHash = JSON.stringify({
+      row_count: tableResult.row_count,
+      rows_length: tableResult.rows.length,
+      query: tableResult.query,
+      page: currentPage
+    })
+  }, [tableResult, currentPage, lastDebugHash])
+
   return (
     <Card className="bg-card/60 backdrop-blur-sm border-border shadow-sm">
       <CardHeader className="pb-3">
@@ -142,6 +155,11 @@ const TableDisplay: React.FC<TableDisplayProps> = ({
             </div>
             <div className="text-sm text-muted-foreground">
               Showing {startRow}-{endRow} of {totalRows.toLocaleString()} rows
+              {tableResult.row_count !== tableResult.rows.length && (
+                <span className="text-orange-500 ml-2" title={`Backend reported ${tableResult.row_count} rows, but actual rows: ${tableResult.rows.length}`}>
+                  (⚠️ {tableResult.row_count} reported vs {tableResult.rows.length} actual)
+                </span>
+              )}
             </div>
             <Badge variant="secondary" className="text-xs">
               {tableResult.execution_time_ms.toFixed(1)}ms
@@ -219,15 +237,15 @@ const TableDisplay: React.FC<TableDisplayProps> = ({
       </CardHeader>
       
       <CardContent className="p-0">
-        <div className={`border rounded-md ${isMaximized ? 'max-h-[80vh]' : 'max-h-96'} overflow-hidden`}>
-          <div className="overflow-auto h-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        <div className={`relative border rounded-md ${isMaximized ? 'h-[80vh]' : 'h-96'}`}>
+          <div className="absolute inset-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <Table>
-              <TableHeader className="sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+              <TableHeader className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b">
                 <TableRow>
                   {tableResult.columns.map((column) => (
                     <TableHead
                       key={column}
-                      className="cursor-pointer hover:bg-muted/50 select-none min-w-[120px] whitespace-nowrap"
+                      className="cursor-pointer hover:bg-muted/50 select-none min-w-[120px] whitespace-nowrap px-4 py-3"
                       onClick={() => handleSort(column)}
                     >
                       <div className="flex items-center justify-between">
@@ -242,7 +260,7 @@ const TableDisplay: React.FC<TableDisplayProps> = ({
                 {paginatedRows.map((row, rowIndex) => (
                   <TableRow key={rowIndex} className="hover:bg-muted/30">
                     {tableResult.columns.map((column) => (
-                      <TableCell key={column} className="font-mono text-xs min-w-[120px]">
+                      <TableCell key={column} className="font-mono text-xs min-w-[120px] px-4 py-2">
                         <div className="max-w-xs truncate" title={String(row[column] ?? "")}>
                           {row[column] === null ? (
                             <span className="text-muted-foreground italic">NULL</span>
@@ -265,7 +283,7 @@ const TableDisplay: React.FC<TableDisplayProps> = ({
 
 type SortDirection = "asc" | "desc" | null
 
-export function QueryExecutionResults({ query, results: aiResults, onExecute, onOpenTableInNewTab }: QueryExecutionResultsProps) {
+export function QueryExecutionResults({ query, results: aiResults, onExecute, onOpenTableInNewTab, onGenerateErDiagram }: QueryExecutionResultsProps) {
   const [isExecuting, setIsExecuting] = useState(false)
   const [results, setResults] = useState<QueryResult | null>(null)
   const [error, setError] = useState<QueryError | null>(null)
@@ -280,17 +298,20 @@ export function QueryExecutionResults({ query, results: aiResults, onExecute, on
   useEffect(() => {
     if (aiResults && aiResults.success) {
       // Convert AI results to our QueryResult format
+      const transformedRows = (aiResults.rows || []).map(row => 
+        aiResults.columns?.map(col => row[col]) || []
+      )
+
       const formattedResults: QueryResult = {
         columns: aiResults.columns || [],
-        rows: (aiResults.rows || []).map(row => 
-          aiResults.columns?.map(col => row[col]) || []
-        ),
+        rows: transformedRows,
         totalRows: aiResults.row_count || 0,
         executionTime: aiResults.execution_time_ms || 0,
         affectedRows: aiResults.affected_rows || 0,
         // Include table_results if available (new format)
         table_results: aiResults.table_results || []
       }
+
       setResults(formattedResults)
       setError(null)
     } else if (aiResults && !aiResults.success) {
@@ -364,23 +385,7 @@ export function QueryExecutionResults({ query, results: aiResults, onExecute, on
 
   return (
     <div className="space-y-4">
-      {/* Execution Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Play className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold text-foreground">Query Results</h3>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          {results && (
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="h-4 w-4 mr-1" />
-              Export CSV
-            </Button>
-          )}
-        </div>
-      </div>
-
+      
       {/* Execution Status */}
       <AnimatePresence mode="wait">
         {isExecuting && (
@@ -455,6 +460,9 @@ export function QueryExecutionResults({ query, results: aiResults, onExecute, on
                           <span>Table {index + 1}</span>
                           <Badge variant="secondary" className="text-xs ml-1">
                             {tableResult.row_count?.toLocaleString() || tableResult.rows.length.toLocaleString()}
+                            {tableResult.row_count !== tableResult.rows.length && (
+                              <span className="text-orange-500 ml-1">⚠️</span>
+                            )}
                           </Badge>
                         </TabsTrigger>
                       ))}
@@ -477,8 +485,8 @@ export function QueryExecutionResults({ query, results: aiResults, onExecute, on
               </div>
             ) : results.columns && results.columns.length > 0 ? (
               // Fallback for old single table format (backwards compatibility)
-              <TableDisplay
-                tableResult={{
+              (() => {
+                const transformedTableResult = {
                   columns: results.columns,
                   rows: results.rows.map((row, index) => {
                     const rowObj: Record<string, any> = {}
@@ -492,12 +500,18 @@ export function QueryExecutionResults({ query, results: aiResults, onExecute, on
                   execution_time_ms: results.executionTime,
                   query: query || '',
                   query_type: 'SELECT'
-                }}
-                index={0}
-                onOpenInNewTab={onOpenTableInNewTab}
-                onMaximize={handleMaximize}
-                isMaximized={maximizedTable !== null}
-              />
+                }
+
+                return (
+                  <TableDisplay
+                    tableResult={transformedTableResult}
+                    index={0}
+                    onOpenInNewTab={onOpenTableInNewTab}
+                    onMaximize={handleMaximize}
+                    isMaximized={maximizedTable !== null}
+                  />
+                )
+              })()
             ) : query && !isDataQuery(query) ? (
               // For DDL/DML operations, don't show success message - just remain silent
               null

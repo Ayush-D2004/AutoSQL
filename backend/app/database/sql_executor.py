@@ -525,18 +525,67 @@ class DatabaseExecutor:
         
         return statements
     
-    async def execute_sql_smart(self, sql_text: str, forgiving_mode: bool = True, **kwargs) -> List[SQLExecutionResult]:
+    def _auto_preprocess_sql(self, sql_text: str) -> str:
+        """
+        Auto-preprocess SQL to add DROP TABLE IF EXISTS before CREATE TABLE statements
+        for better user experience and clean table state.
+        
+        Args:
+            sql_text: Original SQL text from user/AI
+            
+        Returns:
+            Preprocessed SQL with automatic DROP statements added
+        """
+        statements = self.parse_sql_statements(sql_text)
+        processed_statements = []
+        
+        for statement in statements:
+            statement_upper = statement.strip().upper()
+            
+            # Check if this is a CREATE TABLE statement
+            if statement_upper.startswith('CREATE TABLE'):
+                # Extract table name using regex
+                create_table_pattern = r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([`"\[]?\w+[`"\]]?)'
+                match = re.search(create_table_pattern, statement_upper)
+                
+                if match:
+                    table_name = match.group(1)
+                    # Remove any quotes or brackets for the DROP statement
+                    clean_table_name = table_name.strip('`"[]')
+                    
+                    # Add DROP TABLE IF EXISTS before the CREATE TABLE
+                    drop_statement = f"DROP TABLE IF EXISTS {clean_table_name};"
+                    processed_statements.append(drop_statement)
+                    
+                    logger.info(f"Auto-preprocessing: Added DROP TABLE IF EXISTS {clean_table_name}")
+            
+            # Add the original statement (ensure it ends with semicolon)
+            original_statement = statement.strip()
+            if original_statement and not original_statement.endswith(';'):
+                original_statement += ';'
+            processed_statements.append(original_statement)
+        
+        # Join statements back together with proper separation
+        return '\n'.join(processed_statements)
+    
+    async def execute_sql_smart(self, sql_text: str, forgiving_mode: bool = True, auto_preprocess: bool = True, **kwargs) -> List[SQLExecutionResult]:
         """
         Smart SQL execution that handles both single and multiple statements with forgiving mode
+        and optional auto-preprocessing for clean table state.
         
         Args:
             sql_text: SQL text (can contain multiple statements)
             forgiving_mode: Whether to treat harmless errors as success
+            auto_preprocess: Whether to automatically add DROP TABLE IF EXISTS for CREATE TABLE statements
             **kwargs: Additional parameters for execute_sql
             
         Returns:
             List of SQLExecutionResult (single item if only one statement)
         """
+        # Auto-preprocess SQL if enabled
+        if auto_preprocess:
+            sql_text = self._auto_preprocess_sql(sql_text)
+        
         statements = self.parse_sql_statements(sql_text)
         
         if len(statements) == 1:
@@ -572,6 +621,6 @@ async def execute_transaction(sql_statements: List[str]) -> List[SQLExecutionRes
     return await db_executor.execute_multiple_sql(sql_statements, use_transaction=True, forgiving_mode=False)
 
 
-async def execute_smart_query(sql_text: str, forgiving_mode: bool = True, **kwargs) -> List[SQLExecutionResult]:
-    """Smart execution that handles both single and multiple SQL statements with forgiving mode"""
-    return await db_executor.execute_sql_smart(sql_text, forgiving_mode=forgiving_mode, **kwargs)
+async def execute_smart_query(sql_text: str, forgiving_mode: bool = True, auto_preprocess: bool = True, **kwargs) -> List[SQLExecutionResult]:
+    """Smart execution that handles both single and multiple SQL statements with forgiving mode and auto-preprocessing"""
+    return await db_executor.execute_sql_smart(sql_text, forgiving_mode=forgiving_mode, auto_preprocess=auto_preprocess, **kwargs)

@@ -17,7 +17,8 @@ import {
   FileText,
   Download,
   Menu,
-  X
+  X,
+  Network
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AiPromptInterface } from "@/components/ai-prompt-interface"
 import { SqlCodeEditor } from "./sql-code-editor"
 import { QueryExecutionResults } from "@/components/query-execution-results"
-import { executeQuery, generateQuery, clearConversation, getSchemaAsMermaid } from "@/lib/api"
+import { executeQuery, generateQuery, clearConversation, getSchemaAsMermaid, getSchemaAsMindmap } from "@/lib/api"
 import type { AIQueryResponse, ExecuteQueryResponse, EnhanceSQLRequest, TableResult, MermaidSchemaResponse } from "@/lib/api"
 
 interface Message {
@@ -57,6 +58,10 @@ export function SqlIdeLayout() {
   const [isLoadingErDiagram, setIsLoadingErDiagram] = useState(false)
   const [showErDiagram, setShowErDiagram] = useState(false)
   const [erDiagramView, setErDiagramView] = useState<'diagram' | 'code'>('diagram')
+  const [mindmapData, setMindmapData] = useState<MermaidSchemaResponse | null>(null)
+  const [isLoadingMindmap, setIsLoadingMindmap] = useState(false)
+  const [showMindmap, setShowMindmap] = useState(false)
+  const [mindmapView, setMindmapView] = useState<'diagram' | 'code'>('diagram')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Mermaid renderer function
@@ -102,6 +107,15 @@ export function SqlIdeLayout() {
       }, 100) // Small delay to ensure DOM is ready
     }
   }, [erDiagramData, showErDiagram, erDiagramView])
+
+  // Effect to render mindmap when data changes and diagram view is active
+  useEffect(() => {
+    if (mindmapData?.has_tables && mindmapData.mermaid && showMindmap && mindmapView === 'diagram') {
+      setTimeout(() => {
+        renderMermaidDiagram(mindmapData.mermaid, 'mermaid-mindmap-container')
+      }, 100) // Small delay to ensure DOM is ready
+    }
+  }, [mindmapData, showMindmap, mindmapView])
 
   const handleOpenTableInNewTab = (tableResult: any) => {
     const tabId = `table-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -233,6 +247,21 @@ export function SqlIdeLayout() {
       // You might want to show an error message to the user here
     } finally {
       setIsLoadingErDiagram(false)
+    }
+  }
+
+  const handleGenerateMindmap = async () => {
+    setIsLoadingMindmap(true)
+    try {
+      const mindmapData = await getSchemaAsMindmap()
+      setMindmapData(mindmapData)
+      setShowMindmap(true)
+      setActiveTab("mindmap")
+    } catch (error) {
+      console.error('Failed to generate mindmap:', error)
+      // You might want to show an error message to the user here
+    } finally {
+      setIsLoadingMindmap(false)
     }
   }
 
@@ -500,6 +529,13 @@ export function SqlIdeLayout() {
                           <span className="sm:hidden">ER</span>
                         </TabsTrigger>
                       )}
+                      {showMindmap && (
+                        <TabsTrigger value="mindmap" className="flex items-center space-x-1 lg:space-x-2 text-xs lg:text-sm whitespace-nowrap">
+                          <Network className="h-3 w-3 lg:h-4 lg:w-4" />
+                          <span className="hidden sm:inline">Mindmap</span>
+                          <span className="sm:hidden">Mind</span>
+                        </TabsTrigger>
+                      )}
                       {tableTabs.map((tab) => (
                         <TabsTrigger 
                           key={tab.id} 
@@ -538,16 +574,26 @@ export function SqlIdeLayout() {
                       <div className="h-full flex flex-col">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 lg:gap-0 mb-4 flex-shrink-0">
                           <h3 className="text-base lg:text-lg font-semibold">Query Results</h3>
-                          <Button
-                            onClick={handleGenerateErDiagram}
-                            disabled={isLoadingErDiagram}
-                            variant="outline"
-                            size="sm"
-                            className="self-start sm:self-auto"
-                          >
-                            <GitBranch className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
-                            <span className="text-xs lg:text-sm">{isLoadingErDiagram ? "Generating..." : "Generate ER Diagram"}</span>
-                          </Button>
+                          <div className="flex gap-2 self-start sm:self-auto">
+                            <Button
+                              onClick={handleGenerateErDiagram}
+                              disabled={isLoadingErDiagram}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <GitBranch className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                              <span className="text-xs lg:text-sm">{isLoadingErDiagram ? "Generating..." : "ER Diagram"}</span>
+                            </Button>
+                            <Button
+                              onClick={handleGenerateMindmap}
+                              disabled={isLoadingMindmap}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <Network className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                              <span className="text-xs lg:text-sm">{isLoadingMindmap ? "Generating..." : "Mindmap"}</span>
+                            </Button>
+                          </div>
                         </div>
                         <div className="flex-1 overflow-hidden">
                           <QueryExecutionResults 
@@ -568,6 +614,7 @@ export function SqlIdeLayout() {
                             }}
                             onExecute={() => {}}
                             onOpenTableInNewTab={handleOpenTableInNewTab}
+                            onGenerateErDiagram={handleGenerateErDiagram}
                           />
                         </div>
                       </div>
@@ -630,6 +677,7 @@ export function SqlIdeLayout() {
                             }}
                             onExecute={() => {}}
                             onOpenTableInNewTab={handleOpenTableInNewTab}
+                            onGenerateErDiagram={handleGenerateErDiagram}
                           />
                         </div>
                       </div>
@@ -823,6 +871,201 @@ export function SqlIdeLayout() {
                                   className="w-6 h-6 lg:w-8 lg:h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"
                                 />
                                 <p className="text-sm lg:text-base text-gray-600">Loading ER diagram...</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </TabsContent>
+                  )}
+                  
+                  {/* Mindmap Tab Content */}
+                  {showMindmap && (
+                    <TabsContent value="mindmap" className="flex-1 m-0 p-3 lg:p-6 overflow-hidden">
+                      <div className="h-full flex flex-col">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 lg:gap-0 mb-4 flex-shrink-0">
+                          <h3 className="text-base lg:text-lg font-semibold">Database Schema Mindmap</h3>
+                          <div className="flex items-center space-x-2">
+                            {mindmapData?.has_tables && mindmapData.mermaid && (
+                              <Button
+                                onClick={() => {
+                                  // Download mindmap as SVG
+                                  const svgElement = document.querySelector('#mermaid-mindmap-container svg');
+                                  if (svgElement) {
+                                    const svgData = new XMLSerializer().serializeToString(svgElement);
+                                    const blob = new Blob([svgData], { type: 'image/svg+xml' });
+                                    const url = URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.download = 'schema-mindmap.svg';
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(url);
+                                  }
+                                }}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Download className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                                <span className="text-xs lg:text-sm">Download SVG</span>
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowMindmap(false)
+                                setActiveTab("table")
+                              }}
+                              className="text-destructive hover:bg-destructive/20"
+                            >
+                              <span className="text-xs lg:text-sm">Close</span>
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="border rounded-lg flex-1 overflow-hidden bg-white">
+                          {mindmapData ? (
+                            <div className="h-full flex flex-col">
+                              {mindmapData.has_tables ? (
+                                <div className="h-full flex flex-col">
+                                  {/* Toggle Buttons */}
+                                  <div className="flex space-x-2 p-4 border-b flex-shrink-0">
+                                    <Button
+                                      onClick={() => setMindmapView('diagram')}
+                                      variant={mindmapView === 'diagram' ? 'default' : 'outline'}
+                                      size="sm"
+                                      className="flex items-center space-x-2"
+                                    >
+                                      <Eye className="h-3 w-3 lg:h-4 lg:w-4" />
+                                      <span className="text-xs lg:text-sm">Visual Mindmap</span>
+                                    </Button>
+                                    <Button
+                                      onClick={() => setMindmapView('code')}
+                                      variant={mindmapView === 'code' ? 'default' : 'outline'}
+                                      size="sm"
+                                      className="flex items-center space-x-2"
+                                    >
+                                      <FileText className="h-3 w-3 lg:h-4 lg:w-4" />
+                                      <span className="text-xs lg:text-sm">Mermaid Code</span>
+                                    </Button>
+                                  </div>
+
+                                  {/* Content Area with proper scrolling */}
+                                  <div className="flex-1 overflow-hidden">
+                                    {/* Visual Mindmap Section */}
+                                    {mindmapView === 'diagram' && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="h-full flex flex-col"
+                                      >
+                                        <div className="p-4 pb-2 flex-shrink-0">
+                                          <h4 className="font-semibold flex items-center text-sm lg:text-base">
+                                            <Eye className="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
+                                            Visual Schema Mindmap
+                                          </h4>
+                                        </div>
+                                        <div className="flex-1 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 p-4 pt-0">
+                                          <div className="border rounded-lg p-4 bg-gray-50 min-h-full">
+                                            <div 
+                                              id="mermaid-mindmap-container" 
+                                              className="w-full h-auto min-h-[400px] flex items-center justify-center"
+                                            >
+                                              <div className="text-center text-gray-500">
+                                                <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                                                <p className="text-xs lg:text-sm">Rendering mindmap...</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    )}
+
+                                    {/* Mermaid Code Section */}
+                                    {mindmapView === 'code' && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="h-full flex flex-col"
+                                      >
+                                        <div className="p-4 pb-2 flex-shrink-0">
+                                          <h4 className="font-semibold flex items-center text-sm lg:text-base">
+                                            <FileText className="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
+                                            Mermaid Mindmap Code
+                                          </h4>
+                                        </div>
+                                        <div className="flex-1 overflow-hidden p-4 pt-0">
+                                          <div className="border rounded-lg overflow-hidden h-full flex flex-col">
+                                            <div className="bg-gray-50 px-3 py-2 border-b flex justify-between items-center flex-shrink-0">
+                                              <span className="text-xs lg:text-sm font-medium text-gray-700">mermaid</span>
+                                              <Button
+                                                onClick={() => {
+                                                  navigator.clipboard.writeText(mindmapData.mermaid)
+                                                  // You could add a toast notification here
+                                                }}
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-xs"
+                                              >
+                                                Copy
+                                              </Button>
+                                            </div>
+                                            <div className="flex-1 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                                              <pre className="text-xs lg:text-sm p-4 bg-white h-full">
+                                                <code>{mindmapData.mermaid}</code>
+                                              </pre>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="p-4 pt-0 flex-shrink-0">
+                                          <p className="text-xs lg:text-sm text-gray-600">
+                                            You can copy this code to{' '}
+                                            <a 
+                                              href="https://mermaid.live" 
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="text-blue-500 underline hover:text-blue-700"
+                                            >
+                                              mermaid.live
+                                            </a>{' '}
+                                            for external editing or sharing.
+                                          </p>
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </div>
+
+                                  {/* Metadata */}
+                                  <div className="text-xs text-gray-500 p-4 border-t flex-shrink-0">
+                                    <p>Generated at: {new Date(mindmapData.generated_at).toLocaleString()}</p>
+                                    <p>Status: {mindmapData.message}</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center h-full">
+                                  <div className="text-center">
+                                    <Network className="h-12 w-12 lg:h-16 lg:w-16 mx-auto mb-4 text-gray-400" />
+                                    <p className="text-sm lg:text-base text-gray-600 mb-2">{mindmapData.message}</p>
+                                    <p className="text-xs lg:text-sm text-gray-500">
+                                      Create some tables first to see the schema mindmap.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <motion.div
+                                  animate={{ rotate: 360 }}
+                                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                  className="w-6 h-6 lg:w-8 lg:h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"
+                                />
+                                <p className="text-sm lg:text-base text-gray-600">Loading mindmap...</p>
                               </div>
                             </div>
                           )}

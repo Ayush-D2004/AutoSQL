@@ -54,8 +54,9 @@ IMPORTANT OPERATING PRINCIPLES:
    - Never include transaction control statements (BEGIN/COMMIT/ROLLBACK) — connection handles those.
 
 4. SAFETY & CONSISTENCY RULES:
-   - Do not recreate existing tables unless the user explicitly requests recreation.
-   - Use ALTER TABLE to evolve schema when possible.
+   - Generate clean, user-friendly SQL: Start directly with CREATE TABLE statements (no DROP statements).
+   - The backend will automatically handle table cleanup before execution.
+   - For schema evolution: Use ALTER TABLE when only adding/modifying columns to existing tables.
    - Ensure INSERTs provide values for NOT NULL columns.
    - Use proper foreign key values (reference existing ids or create parent rows first).
    - Keep SQL standard and portable (SQLite/Postgres/MySQL-friendly where possible).

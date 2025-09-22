@@ -244,24 +244,55 @@ class SQLWorkflow:
         try:
             logger.info(f"Executing SQL: {state['generated_sql']}")
             
-            # Execute the SQL
-            result = await db_executor.execute_sql(
-                sql=state["generated_sql"],
+            # Execute the SQL using smart execution for multiple statements with auto-preprocessing
+            results = await db_executor.execute_sql_smart(
+                sql_text=state["generated_sql"],
                 auto_commit=True,
-                safety_check=True
+                safety_check=True,
+                forgiving_mode=True,
+                auto_preprocess=True  # Enable auto-preprocessing for clean table state
             )
             
-            state["execution_result"] = result.to_dict()
-            state["execution_success"] = result.success
-            
-            if result.success:
-                state["messages"].append(AIMessage(content=f"SQL executed successfully. Rows: {result.row_count}"))
-                logger.info(f"SQL execution successful. Rows: {result.row_count}")
+            # Handle multiple results - use the last successful one for display
+            if results:
+                # Find the best result to display (prefer SELECT results)
+                display_result = None
+                for result in reversed(results):
+                    if result.success and (result.rows or result.affected_rows > 0):
+                        display_result = result
+                        break
+                
+                if not display_result:
+                    display_result = results[-1]  # Use last result if no good one found
+                
+                # Check if all results were successful
+                all_successful = all(r.success for r in results)
+                
+                state["execution_result"] = display_result.to_dict()
+                state["execution_success"] = all_successful
+                
+                if all_successful:
+                    if len(results) > 1:
+                        state["messages"].append(AIMessage(content=f"Multiple SQL statements executed successfully. Final result rows: {display_result.row_count}"))
+                        logger.info(f"Multiple SQL statements executed successfully. Statements: {len(results)}, Final rows: {display_result.row_count}")
+                    else:
+                        state["messages"].append(AIMessage(content=f"SQL executed successfully. Rows: {display_result.row_count}"))
+                        logger.info(f"SQL execution successful. Rows: {display_result.row_count}")
+                else:
+                    # Find first error
+                    error_results = [r for r in results if not r.success]
+                    if error_results:
+                        error_msg = f"SQL execution failed: {error_results[0].error_message}"
+                    else:
+                        error_msg = "SQL execution failed: Unknown error"
+                    state["errors"].append(error_msg)
+                    state["messages"].append(AIMessage(content=error_msg))
+                    logger.error(error_msg)
             else:
-                error_msg = f"SQL execution failed: {result.error_message}"
+                error_msg = "SQL execution failed: No results returned"
                 state["errors"].append(error_msg)
-                state["messages"].append(AIMessage(content=error_msg))
-                logger.error(error_msg)
+                state["execution_success"] = False
+                state["execution_result"] = None
             
         except Exception as e:
             error_msg = f"SQL execution error: {str(e)}"

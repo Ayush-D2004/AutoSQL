@@ -14,6 +14,7 @@ from sqlalchemy import text
 from ..ai.langgraph import sql_workflow
 from ..ai.gemini import generate_sql_from_prompt, gemini_generator
 from ..database.schema_inspector import schema_inspector
+from ..database.sql_executor import db_executor
 from ..services.conversation_memory import conversation_memory, MessageType
 from ..core.config import settings
 from ..core.database import database_manager
@@ -518,7 +519,6 @@ async def _process_direct_query(request: AIQueryRequest, conversation_context: s
     Returns:
         Result dictionary
     """
-    from ..database.sql_executor import db_executor
     from ..database.history_service import history_service
     
     try:
@@ -543,7 +543,7 @@ async def _process_direct_query(request: AIQueryRequest, conversation_context: s
         )
         
         # Split SQL into multiple statements if needed
-        sql_statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip()]
+        sql_statements = db_executor.parse_sql_statements(sql)
         
         if len(sql_statements) == 1:
             # Single statement - use forgiving execution

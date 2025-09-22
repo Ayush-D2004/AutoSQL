@@ -46,7 +46,7 @@ class GeminiSQLGenerator:
         if not schema or not schema.get('tables'):
             return "No tables exist in the database yet."
         
-        context_parts = ["Current database schema:"]
+        context_parts = ["Database contains the following tables with EXACT column definitions:"]
         
         for table in schema.get('tables', []):
             table_name = table.get('name', 'unknown')
@@ -62,9 +62,9 @@ class GeminiSQLGenerator:
                         col_desc += " NOT NULL"
                     column_descriptions.append(col_desc)
                 
-                context_parts.append(f"Table {table_name}: {', '.join(column_descriptions)}")
+                context_parts.append(f"Table '{table_name}' has ONLY these columns: {', '.join(column_descriptions)}")
             else:
-                context_parts.append(f"Table {table_name}: (no columns defined)")
+                context_parts.append(f"Table '{table_name}': (no columns defined)")
         
         # Add foreign key relationships if available
         for table in schema.get('tables', []):
@@ -73,6 +73,9 @@ class GeminiSQLGenerator:
             if foreign_keys:
                 for fk in foreign_keys:
                     context_parts.append(f"  {table_name}.{fk.get('column')} → {fk.get('referenced_table')}.{fk.get('referenced_column')}")
+        
+        context_parts.append("")
+        context_parts.append("IMPORTANT: You must ONLY use the columns that exist in the above schema. Do NOT assume or add columns that are not explicitly listed.")
         
         return "\n".join(context_parts)
     
@@ -98,7 +101,7 @@ class GeminiSQLGenerator:
             
         return build_enhanced_prompt(
             user_prompt=user_prompt,
-            editor_content=schema_context + (f"\n\nPrevious conversation:\n{conversation_context}" if conversation_context else ""),
+            editor_content=f"CURRENT DATABASE SCHEMA (AUTHORITATIVE - USE ONLY THESE TABLES AND COLUMNS):\n{schema_context}" + (f"\n\nPrevious conversation context:\n{conversation_context}" if conversation_context else ""),
             include_examples=True,
             error_context=enhanced_error_context
         )

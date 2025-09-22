@@ -33,10 +33,13 @@ export function SqlCodeEditor({
     const textarea = textareaRef.current
     if (textarea) {
       textarea.style.height = 'auto'
-      // Minimum height of 300px, maximum of 500px
-      textarea.style.height = Math.max(300, Math.min(textarea.scrollHeight, 500)) + 'px'
+      // Calculate max height based on viewport height - reserve space for header and buttons
+      const maxHeight = isMaximized ? 
+        Math.max(300, window.innerHeight - 10) : 
+        Math.max(300, Math.min(window.innerHeight * 0.4, 500))
+      textarea.style.height = Math.max(300, Math.min(textarea.scrollHeight, maxHeight)) + 'px'
     }
-  }, [value])
+  }, [value, isMaximized])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Ctrl+Enter to execute
@@ -168,6 +171,7 @@ export function SqlCodeEditor({
               className="font-mono resize-none w-full h-full focus:ring-2 focus:ring-blue-500 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
               style={{
                 minHeight: isMaximized ? 'calc(100vh - 200px)' : '300px',
+                maxHeight: isMaximized ? 'calc(100vh - 200px)' : 'calc(40vh)',
                 height: isMaximized ? 'calc(100vh - 200px)' : 'auto'
               }}
             />

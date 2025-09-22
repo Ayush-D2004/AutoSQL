@@ -4,27 +4,28 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Database, Home, RefreshCw } from "lucide-react"
+import { Loader2, Database, Home, RefreshCw, Network } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { getSchemaAsMermaid, type MermaidSchemaResponse } from "@/lib/api"
+import { getSchemaAsMermaid, getSchemaAsMindmap, type MermaidSchemaResponse } from "@/lib/api"
 
 export default function ERDiagramPage() {
   const [schemaData, setSchemaData] = useState<MermaidSchemaResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<"er" | "mindmap">("er")
   const router = useRouter()
 
-  const fetchSchema = async () => {
+  const fetchSchema = async (mode: "er" | "mindmap" = viewMode) => {
     try {
       setLoading(true)
       setError(null)
       
-      const data = await getSchemaAsMermaid()
+      const data = mode === "er" ? await getSchemaAsMermaid() : await getSchemaAsMindmap()
       setSchemaData(data)
       
       // If we have tables, render the mermaid diagram
       if (data.has_tables && data.mermaid) {
-        await renderMermaidDiagram(data.mermaid)
+        await renderMermaidDiagram(data.mermaid, mode)
       }
       
     } catch (err) {
@@ -35,19 +36,20 @@ export default function ERDiagramPage() {
     }
   }
 
-  const renderMermaidDiagram = async (mermaidCode: string) => {
+  const renderMermaidDiagram = async (mermaidCode: string, mode: "er" | "mindmap" = "er") => {
     try {
       // For now, just display the Mermaid code as text
       // Later we can integrate with a proper Mermaid renderer
       const element = document.getElementById('mermaid-diagram')
       if (element) {
+        const diagramType = mode === "er" ? "ER Diagram" : "Mindmap"
         element.innerHTML = `
           <div class="bg-gray-50 p-4 rounded border">
-            <h4 class="font-semibold mb-2">Mermaid ER Diagram Code:</h4>
+            <h4 class="font-semibold mb-2">Mermaid ${diagramType} Code:</h4>
             <pre class="text-sm bg-white p-3 rounded border overflow-auto"><code>${mermaidCode}</code></pre>
             <p class="text-sm text-gray-600 mt-2">
               Copy this code to <a href="https://mermaid.live" target="_blank" class="text-blue-500 underline">mermaid.live</a> 
-              to view the visual diagram.
+              to view the visual ${mode === "er" ? "diagram" : "mindmap"}.
             </p>
           </div>
         `
@@ -63,8 +65,18 @@ export default function ERDiagramPage() {
     fetchSchema()
   }, [])
 
+  useEffect(() => {
+    if (schemaData) {
+      fetchSchema(viewMode)
+    }
+  }, [viewMode])
+
   const handleRefresh = () => {
-    fetchSchema()
+    fetchSchema(viewMode)
+  }
+
+  const handleViewModeChange = (mode: "er" | "mindmap") => {
+    setViewMode(mode)
   }
 
   const handleGoHome = () => {
@@ -89,9 +101,29 @@ export default function ERDiagramPage() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Database className="h-8 w-8" />
-              ER Diagram
+              {viewMode === "er" ? "ER Diagram" : "Schema Mindmap"}
             </h1>
             <div className="flex gap-2">
+              <div className="flex rounded-lg border bg-white">
+                <Button
+                  onClick={() => handleViewModeChange("er")}
+                  variant={viewMode === "er" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-r-none"
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  ER Diagram
+                </Button>
+                <Button
+                  onClick={() => handleViewModeChange("mindmap")}
+                  variant={viewMode === "mindmap" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-l-none"
+                >
+                  <Network className="h-4 w-4 mr-2" />
+                  Mindmap
+                </Button>
+              </div>
               <Button onClick={handleRefresh} variant="outline">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Retry
@@ -120,9 +152,29 @@ export default function ERDiagramPage() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Database className="h-8 w-8" />
-              ER Diagram
+              {viewMode === "er" ? "ER Diagram" : "Schema Mindmap"}
             </h1>
             <div className="flex gap-2">
+              <div className="flex rounded-lg border bg-white">
+                <Button
+                  onClick={() => handleViewModeChange("er")}
+                  variant={viewMode === "er" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-r-none"
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  ER Diagram
+                </Button>
+                <Button
+                  onClick={() => handleViewModeChange("mindmap")}
+                  variant={viewMode === "mindmap" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-l-none"
+                >
+                  <Network className="h-4 w-4 mr-2" />
+                  Mindmap
+                </Button>
+              </div>
               <Button onClick={handleRefresh} variant="outline">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
@@ -165,9 +217,29 @@ export default function ERDiagramPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Database className="h-8 w-8" />
-            Database ER Diagram
+            Database {viewMode === "er" ? "ER Diagram" : "Schema Mindmap"}
           </h1>
           <div className="flex gap-2">
+            <div className="flex rounded-lg border bg-white">
+              <Button
+                onClick={() => handleViewModeChange("er")}
+                variant={viewMode === "er" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-r-none"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                ER Diagram
+              </Button>
+              <Button
+                onClick={() => handleViewModeChange("mindmap")}
+                variant={viewMode === "mindmap" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-l-none"
+              >
+                <Network className="h-4 w-4 mr-2" />
+                Mindmap
+              </Button>
+            </div>
             <Button onClick={handleRefresh} variant="outline">
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
@@ -181,9 +253,11 @@ export default function ERDiagramPage() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Entity Relationship Diagram</CardTitle>
+            <CardTitle>{viewMode === "er" ? "Entity Relationship Diagram" : "Database Schema Mindmap"}</CardTitle>
             <p className="text-sm text-gray-600">
-              Visual representation of your database schema and relationships
+              {viewMode === "er" 
+                ? "Visual representation of your database schema and relationships"
+                : "Hierarchical mindmap view of your database structure"}
             </p>
           </CardHeader>
           <CardContent>

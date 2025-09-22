@@ -100,6 +100,7 @@ export interface MermaidSchemaResponse {
   has_tables: boolean
   generated_at: string
   message: string
+  type?: string
 }
 
 class APIClient {
@@ -193,6 +194,11 @@ class APIClient {
   async getSchemaAsMermaid(): Promise<MermaidSchemaResponse> {
     return this.request('/api/db/schema/mermaid')
   }
+
+  // Get database schema as Mermaid mindmap
+  async getSchemaAsMindmap(): Promise<MermaidSchemaResponse> {
+    return this.request('/api/db/schema/mindmap')
+  }
 }
 
 // Create and export a singleton instance
@@ -208,3 +214,4 @@ export const getConversationHistory = (sessionId: string, limit?: number) => api
 export const clearConversation = (sessionId: string) => apiClient.clearConversation(sessionId)
 export const enhanceCode = (request: EnhanceSQLRequest) => apiClient.enhanceCode(request)
 export const getSchemaAsMermaid = () => apiClient.getSchemaAsMermaid()
+export const getSchemaAsMindmap = () => apiClient.getSchemaAsMindmap()
