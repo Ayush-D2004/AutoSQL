@@ -4,9 +4,9 @@ AI API Routes
 Provides REST endpoints for AI-powered natural language to SQL processing.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, File, UploadFile, Form
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 from datetime import datetime
 from sqlalchemy import text
@@ -716,4 +716,97 @@ async def _process_direct_query(request: AIQueryRequest, conversation_context: s
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat(),
             "metadata": {"workflow_used": False}
+        }
+
+
+@router.post("/solve")
+async def solve_from_input(
+    prompt: Optional[str] = Form(None),
+    files: List[UploadFile] = File(default=[])
+):
+    """
+    Solve questions from multimodal input (text and/or images)
+    
+    Accepts:
+    - Text only: Just the prompt
+    - Images only: Upload image files
+    - Text + Images: Both prompt and image files
+    
+    Supports PNG and JPEG images
+    """
+    try:
+        # Validate input
+        if not prompt and not files:
+            raise HTTPException(status_code=400, detail="Either prompt or image files must be provided")
+        
+        # Validate and process image files
+        images = []
+        image_mimes = []
+        
+        for file in files:
+            # Check file type
+            if file.content_type not in ['image/png', 'image/jpeg', 'image/jpg']:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Unsupported file type: {file.content_type}. Only PNG and JPEG are allowed."
+                )
+            
+            # Read file content
+            try:
+                content = await file.read()
+                if len(content) == 0:
+                    raise HTTPException(status_code=400, detail=f"Empty file: {file.filename}")
+                
+                images.append(content)
+                image_mimes.append(file.content_type)
+                
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Error reading file {file.filename}: {str(e)}")
+        
+        # Get current database schema for context
+        try:
+            schema_obj = await schema_inspector.get_full_schema()
+            schema = schema_obj.to_dict() if schema_obj else {"tables": []}
+        except Exception as e:
+            logger.warning(f"Failed to get schema: {e}")
+            schema = {"tables": []}
+        
+        # Use Gemini multimodal capabilities
+        if not gemini_generator:
+            raise HTTPException(status_code=500, detail="Gemini AI is not configured")
+        
+        response_text, metadata = await gemini_generator.solve_from_multimodal_input(
+            prompt=prompt,
+            images=images if images else None,
+            image_mimes=image_mimes if image_mimes else None,
+            schema=schema,
+            max_retries=2
+        )
+        
+        return {
+            "success": True,
+            "response": response_text,
+            "metadata": {
+                **metadata,
+                "input_type": "multimodal" if images else "text_only",
+                "image_count": len(images),
+                "has_text_prompt": bool(prompt),
+                "schema_available": bool(schema.get('tables'))
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in solve endpoint: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat(),
+            "metadata": {
+                "input_type": "multimodal" if files else "text_only",
+                "image_count": len(files),
+                "has_text_prompt": bool(prompt)
+            }
         }

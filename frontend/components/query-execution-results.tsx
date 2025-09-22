@@ -288,10 +288,27 @@ export function QueryExecutionResults({ query, results: aiResults, onExecute, on
   const [results, setResults] = useState<QueryResult | null>(null)
   const [error, setError] = useState<QueryError | null>(null)
   const [maximizedTable, setMaximizedTable] = useState<TableResult | null>(null)
+  const [visibleTables, setVisibleTables] = useState<Set<number>>(new Set())
+  const [activeTab, setActiveTab] = useState<string>("table-0")
 
   // Function to maximize/minimize a table
   const handleMaximize = (tableResult: TableResult) => {
     setMaximizedTable(maximizedTable ? null : tableResult)
+  }
+
+  // Function to close a table
+  const closeTable = (indexToClose: number) => {
+    const newVisibleTables = new Set(visibleTables)
+    newVisibleTables.delete(indexToClose)
+    setVisibleTables(newVisibleTables)
+    
+    // If we closed the active tab, switch to the first available tab
+    if (activeTab === `table-${indexToClose}`) {
+      const remainingTables = Array.from(newVisibleTables)
+      if (remainingTables.length > 0) {
+        setActiveTab(`table-${remainingTables[0]}`)
+      }
+    }
   }
 
   // Update results when AI results are passed
@@ -314,6 +331,13 @@ export function QueryExecutionResults({ query, results: aiResults, onExecute, on
 
       setResults(formattedResults)
       setError(null)
+      
+      // Initialize visible tables when results change
+      if (aiResults.table_results && aiResults.table_results.length > 0) {
+        const allTableIndexes = new Set(aiResults.table_results.map((_, index) => index))
+        setVisibleTables(allTableIndexes)
+        setActiveTab("table-0")
+      }
     } else if (aiResults && !aiResults.success) {
       setError({
         message: aiResults.error || "Query execution failed"
@@ -448,38 +472,57 @@ export function QueryExecutionResults({ query, results: aiResults, onExecute, on
                   />
                 ) : (
                   // Multiple tables - display in tabs
-                  <Tabs defaultValue="table-0" className="space-y-4">
-                    <TabsList className="grid w-full bg-muted/30" style={{ gridTemplateColumns: `repeat(${results.table_results.length}, 1fr)` }}>
-                      {results.table_results.map((tableResult, index) => (
-                        <TabsTrigger 
-                          key={index} 
-                          value={`table-${index}`}
-                          className="flex items-center space-x-2 text-sm"
-                        >
-                          <TableIcon className="h-3 w-3" />
-                          <span>Table {index + 1}</span>
-                          <Badge variant="secondary" className="text-xs ml-1">
-                            {tableResult.row_count?.toLocaleString() || tableResult.rows.length.toLocaleString()}
-                            {tableResult.row_count !== tableResult.rows.length && (
-                              <span className="text-orange-500 ml-1">⚠️</span>
-                            )}
-                          </Badge>
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                    <div className="overflow-x-auto">
+                      <TabsList className="flex w-max bg-muted/30 min-w-full">
+                        {results.table_results.map((tableResult, index) => 
+                          visibleTables.has(index) ? (
+                            <TabsTrigger 
+                              key={index} 
+                              value={`table-${index}`}
+                              className="flex items-center space-x-2 text-sm whitespace-nowrap flex-shrink-0 relative group"
+                            >
+                              <TableIcon className="h-3 w-3" />
+                              <span>{tableResult.table_name || `Table ${index + 1}`}</span>
+                              <Badge variant="secondary" className="text-xs ml-1">
+                                {tableResult.row_count?.toLocaleString() || tableResult.rows.length.toLocaleString()}
+                                {tableResult.row_count !== tableResult.rows.length && (
+                                  <span className="text-orange-500 ml-1">⚠️</span>
+                                )}
+                              </Badge>
+                              {(results.table_results?.filter((_, i) => visibleTables.has(i)).length || 0) > 1 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    closeTable(index)
+                                  }}
+                                  className="ml-1 p-0.5 rounded-sm hover:bg-gray-200 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  aria-label="Close table"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
+                            </TabsTrigger>
+                          ) : null
+                        )}
+                      </TabsList>
+                    </div>
                     
-                    {results.table_results.map((tableResult, index) => (
-                      <TabsContent key={index} value={`table-${index}`} className="space-y-4">
-                        <TableDisplay
-                          tableResult={tableResult}
-                          index={index}
-                          onOpenInNewTab={onOpenTableInNewTab}
-                          onMaximize={handleMaximize}
-                          isMaximized={maximizedTable === tableResult}
-                          showDragHandle={false}
-                        />
-                      </TabsContent>
-                    ))}
+                    {results.table_results.map((tableResult, index) => 
+                      visibleTables.has(index) ? (
+                        <TabsContent key={index} value={`table-${index}`} className="space-y-4">
+                          <TableDisplay
+                            tableResult={tableResult}
+                            index={index}
+                            onOpenInNewTab={onOpenTableInNewTab}
+                            onMaximize={handleMaximize}
+                            isMaximized={maximizedTable === tableResult}
+                            showDragHandle={false}
+                          />
+                        </TabsContent>
+                      ) : null
+                    )}
                   </Tabs>
                 )}
               </div>

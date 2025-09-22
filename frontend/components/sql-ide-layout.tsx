@@ -27,7 +27,7 @@ import { AiPromptInterface } from "@/components/ai-prompt-interface"
 import { SqlCodeEditor } from "./sql-code-editor"
 import { QueryExecutionResults } from "@/components/query-execution-results"
 import { executeQuery, generateQuery, clearConversation, getSchemaAsMermaid, getSchemaAsMindmap } from "@/lib/api"
-import type { AIQueryResponse, ExecuteQueryResponse, EnhanceSQLRequest, TableResult, MermaidSchemaResponse } from "@/lib/api"
+import type { AIQueryResponse, ExecuteQueryResponse, EnhanceSQLRequest, TableResult, MermaidSchemaResponse, SolveResponse } from "@/lib/api"
 
 interface Message {
   id: string
@@ -265,6 +265,22 @@ export function SqlIdeLayout() {
     }
   }
 
+  const handleSolveResponse = (result: SolveResponse) => {
+    // Add the solve response as a message
+    const solveMessage: Message = {
+      id: Date.now().toString(),
+      type: 'assistant',
+      content: result.response || "No response generated",
+      timestamp: new Date()
+    }
+    setMessages(prev => [...prev, solveMessage])
+    
+    // If there are images involved, show success indicator
+    if (result.metadata.image_count > 0) {
+      console.log(`Successfully processed ${result.metadata.image_count} image(s)`)
+    }
+  }
+
   return (
     <div className="h-screen flex bg-background overflow-hidden">
       {/* Mobile Menu Button */}
@@ -379,6 +395,7 @@ export function SqlIdeLayout() {
                   <CardContent className="p-4 lg:p-8">
                     <AiPromptInterface 
                       onQueryGenerated={handleQueryGenerated}
+                      onSolveResponse={handleSolveResponse}
                       onNewQuery={handleNewQuery}
                     />
                   </CardContent>
@@ -412,7 +429,33 @@ export function SqlIdeLayout() {
                           ? 'bg-primary text-primary-foreground' 
                           : 'bg-muted text-foreground'
                       }`}>
-                        <p className="text-xs lg:text-sm">{message.content}</p>
+                        <div className="text-xs lg:text-sm">
+                          {message.content.split('\n').map((line, index) => (
+                            <div key={index}>
+                              {line.includes('```sql') ? (
+                                <div className="bg-gray-100 dark:bg-gray-800 rounded p-2 mt-1 mb-1">
+                                  <code className="text-xs font-mono">SQL Code Block</code>
+                                </div>
+                              ) : line.includes('```') ? (
+                                <div className="bg-gray-100 dark:bg-gray-800 rounded p-2 mt-1 mb-1">
+                                  <code className="text-xs font-mono">{line.replace(/```/g, '')}</code>
+                                </div>
+                              ) : line.startsWith('##') ? (
+                                <h4 className="font-semibold mt-3 mb-1">{line.replace(/^##\s*/, '')}</h4>
+                              ) : line.startsWith('#') ? (
+                                <h3 className="font-bold mt-3 mb-2">{line.replace(/^#\s*/, '')}</h3>
+                              ) : line.startsWith('--') ? (
+                                <div className="text-green-600 dark:text-green-400 font-mono text-xs mt-2">
+                                  {line}
+                                </div>
+                              ) : line.trim() === '' ? (
+                                <div className="h-2"></div>
+                              ) : (
+                                <div>{line}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                         <span className="text-xs opacity-70 mt-1 block">
                           {message.timestamp.toLocaleTimeString()}
                         </span>
@@ -451,6 +494,7 @@ export function SqlIdeLayout() {
                 {/* Follow-up Query Input - fixed at bottom */}
                 <div className="p-3 lg:p-4 border-t border-border flex-shrink-0 bg-background">
                   <AiPromptInterface
+                    onSolveResponse={handleSolveResponse}
                     onNewQuery={async (prompt: string) => {
                       // Add user message to conversation
                       const userMessage: Message = {
@@ -595,7 +639,7 @@ export function SqlIdeLayout() {
                             </Button>
                           </div>
                         </div>
-                        <div className="flex-1 overflow-hidden">
+                        <div className="flex-1 overflow-auto">
                           <QueryExecutionResults 
                             query={generatedQuery} 
                             results={{

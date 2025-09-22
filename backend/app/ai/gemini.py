@@ -271,6 +271,54 @@ class GeminiSQLGenerator:
         
         raise Exception("Failed to get response from Gemini API")
     
+    async def _generate_multimodal_with_retry(self, contents: List[Dict[str, Any]], max_api_retries: int = 2):
+        """
+        Generate response with multimodal input (text + images) and API-level retry logic
+        
+        Args:
+            contents: List of content parts (text and/or images)
+            max_api_retries: Maximum API retry attempts
+            
+        Returns:
+            Gemini response object
+        """
+        import asyncio
+        
+        for attempt in range(max_api_retries):
+            try:
+                # Run the synchronous Gemini call in a thread pool
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.model.generate_content(
+                        contents,
+                        generation_config={
+                            "temperature": 0.1,
+                            "top_p": 0.95,
+                            "top_k": 40,
+                            "max_output_tokens": 4096,  # Increased for image analysis
+                        }
+                    )
+                )
+                
+                if response and hasattr(response, 'text'):
+                    if response.text is not None:
+                        return response
+                    else:
+                        raise ValueError("Response text is None")
+                else:
+                    raise ValueError(f"Invalid response structure: {type(response)}")
+                
+            except Exception as e:
+                logger.warning(f"Gemini multimodal API call attempt {attempt + 1} failed: {e}")
+                if hasattr(e, '__dict__'):
+                    logger.warning(f"Exception details: {e.__dict__}")
+                if attempt == max_api_retries - 1:
+                    raise
+                await asyncio.sleep(1)
+        
+        raise Exception("Failed to get response from Gemini multimodal API")
+    
     def _basic_sql_validation(self, sql: str) -> bool:
         """
         Perform basic SQL validation
@@ -331,6 +379,166 @@ class GeminiSQLGenerator:
             return False
         
         return True
+
+    async def solve_from_multimodal_input(
+        self,
+        prompt: Optional[str] = None,
+        images: Optional[List[bytes]] = None,
+        image_mimes: Optional[List[str]] = None,
+        schema: Optional[Dict[str, Any]] = None,
+        max_retries: int = 2
+    ) -> Tuple[str, Dict[str, Any]]:
+        """
+        Solve questions from multimodal input (text + images)
+        
+        Args:
+            prompt: Optional text prompt
+            images: List of image bytes
+            image_mimes: List of MIME types for images
+            schema: Database schema for SQL context
+            max_retries: Maximum retry attempts
+            
+        Returns:
+            Tuple of (response_text, metadata)
+        """
+        if not prompt and not images:
+            raise ValueError("Either prompt or images must be provided")
+        
+        # Build multimodal content
+        contents = []
+        
+        # Add system instruction
+        system_prompt = """You are an AI assistant that analyzes images containing database tables and data.
+
+CORE PRINCIPLE: Only do what the user specifically requests. Do not solve questions unless explicitly asked.
+
+CAPABILITIES:
+1. Extract table structures and data from images
+2. Generate CREATE TABLE statements
+3. Generate INSERT statements with exact data from images  
+4. Answer specific SQL questions when asked
+
+RESPONSE FORMAT:
+Use this exact format for table creation requests:
+
+## Table Analysis
+[Brief description of tables found]
+
+## SQL Code
+
+```sql
+-- Creating Students table
+CREATE TABLE Students (
+    StudentID INT PRIMARY KEY,
+    Name VARCHAR(255),
+    Age INT,
+    Department VARCHAR(255),
+    CGPA DECIMAL(3,1)
+);
+
+-- Inserting data into Students table
+INSERT INTO Students (StudentID, Name, Age, Department, CGPA) VALUES
+(101, 'Asha', 20, 'CSE', 8.5),
+(102, 'Priya', 21, 'IT', 7.2);
+
+-- [Continue for other tables]
+```
+
+FORMATTING RULES:
+- Use double line breaks between sections
+- Use proper markdown headers with ##
+- Use ```sql code blocks for all SQL
+- Add descriptive comments before each statement
+- Extract exact data from the image - do not invent data
+- ALWAYS use proper table naming: First letter Capital, rest lowercase (e.g., Students, Courses, Enrollments)
+- ALWAYS end with SELECT statements to display the data from all created tables
+
+EXAMPLE ENDING:
+```sql
+-- Display all data from created tables
+SELECT * FROM Students;
+SELECT * FROM Courses;
+SELECT * FROM Enrollments;
+```
+
+DATABASE CONTEXT:"""
+        
+        if schema and schema.get('tables'):
+            system_prompt += f"\nCurrent database schema:\n{self._build_schema_context(schema)}"
+        else:
+            system_prompt += "\nNo existing database schema available."
+            
+        system_prompt += """
+
+REMEMBER: Extract exactly what you see in the image - do not add extra information or solve unsolicited questions."""
+        
+        contents.append({"role": "user", "parts": [{"text": system_prompt}]})
+        
+        # Add text prompt if provided
+        if prompt:
+            contents.append({"role": "user", "parts": [{"text": f"""USER REQUEST: {prompt}
+
+IMPORTANT:
+- Focus ONLY on what the user is asking for
+- If they want table creation with data, provide CREATE TABLE + INSERT statements
+- If they want to solve questions, solve only the questions they specify
+- Extract exact data from the image - do not invent data
+- Use proper SQL formatting with clear line breaks
+- ALWAYS end with SELECT statements to show the data from created tables
+- Do not answer unsolicited questions from the image"""}]})
+        
+        # Add images if provided
+        if images and image_mimes:
+            import base64
+            for image_bytes, mime_type in zip(images, image_mimes):
+                b64_image = base64.b64encode(image_bytes).decode("utf-8")
+                contents.append({
+                    "role": "user", 
+                    "parts": [{
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": b64_image
+                        }
+                    }]
+                })
+        
+        # Generate response with retry logic
+        try:
+            response = await self._generate_multimodal_with_retry(contents, max_retries)
+            response_text = response.text
+            
+            if not response_text or not response_text.strip():
+                raise ValueError("Received empty response from Gemini")
+            
+            # Only strip leading/trailing whitespace but preserve internal formatting
+            response_text = response_text.strip()
+            
+            # Metadata
+            metadata = {
+                "model": settings.gemini_model,
+                "timestamp": datetime.utcnow().isoformat(),
+                "has_images": bool(images),
+                "has_text": bool(prompt),
+                "image_count": len(images) if images else 0,
+                "retries_used": 0,  # Could track this if needed
+                "raw_response_length": len(response_text)
+            }
+            
+            logger.info(f"Successfully generated multimodal response. Length: {len(response_text)}")
+            return response_text, metadata
+            
+        except Exception as e:
+            logger.error(f"Failed to generate multimodal response: {e}")
+            error_metadata = {
+                "error": str(e),
+                "model": settings.gemini_model,
+                "timestamp": datetime.utcnow().isoformat(),
+                "has_images": bool(images),
+                "has_text": bool(prompt),
+                "image_count": len(images) if images else 0,
+            }
+            
+            return f"Error processing request: {str(e)}", error_metadata
 
 
 # Global instance

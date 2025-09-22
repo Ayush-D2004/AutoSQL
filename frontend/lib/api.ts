@@ -103,6 +103,20 @@ export interface MermaidSchemaResponse {
   type?: string
 }
 
+export interface SolveResponse {
+  success: boolean
+  response?: string
+  error?: string
+  metadata: {
+    input_type: string
+    image_count: number
+    has_text_prompt: boolean
+    schema_available?: boolean
+    [key: string]: any
+  }
+  timestamp: string
+}
+
 class APIClient {
   private baseUrl: string
 
@@ -117,11 +131,20 @@ class APIClient {
     const url = `${this.baseUrl}${endpoint}`
     
     const config: RequestInit = {
-      headers: {
+      ...options,
+    }
+    
+    // Only add Content-Type header if body is not FormData
+    if (!(options.body instanceof FormData)) {
+      config.headers = {
         'Content-Type': 'application/json',
         ...options.headers,
-      },
-      ...options,
+      }
+    } else {
+      // For FormData, let browser set the Content-Type with boundary
+      config.headers = {
+        ...options.headers,
+      }
     }
 
     try {
@@ -199,6 +222,29 @@ class APIClient {
   async getSchemaAsMindmap(): Promise<MermaidSchemaResponse> {
     return this.request('/api/db/schema/mindmap')
   }
+
+  // Solve questions from multimodal input (text and/or images)
+  async solveFromInput(prompt?: string, images?: File[]): Promise<SolveResponse> {
+    const formData = new FormData()
+    
+    if (prompt) {
+      formData.append('prompt', prompt)
+    }
+    
+    if (images && images.length > 0) {
+      images.forEach(image => {
+        formData.append('files', image)
+      })
+    }
+    
+    return this.request('/api/ai/solve', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        // Don't set Content-Type header, let browser set it with boundary for multipart
+      }
+    })
+  }
 }
 
 // Create and export a singleton instance
@@ -215,3 +261,4 @@ export const clearConversation = (sessionId: string) => apiClient.clearConversat
 export const enhanceCode = (request: EnhanceSQLRequest) => apiClient.enhanceCode(request)
 export const getSchemaAsMermaid = () => apiClient.getSchemaAsMermaid()
 export const getSchemaAsMindmap = () => apiClient.getSchemaAsMindmap()
+export const solveFromInput = (prompt?: string, images?: File[]) => apiClient.solveFromInput(prompt, images)

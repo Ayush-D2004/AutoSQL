@@ -45,11 +45,28 @@ class SchemaVisualizer:
                 # Get all table names
                 table_names = inspector.get_table_names()
                 
-                if not table_names:
-                    return "erDiagram\n    NO_TABLES {\n        string message \"No tables found in database\"\n    }"
+                # Filter out internal application tables that shouldn't appear in user diagrams
+                internal_tables = {
+                    'database_connections',
+                    'query_history', 
+                    'session_info',
+                    'system_metadata',
+                    'employees',  # Example/demo table
+                    'conversation_history',
+                    'user_sessions',
+                    'application_settings',
+                    'migration_history',
+                    'audit_log'
+                }
+                
+                # Filter out internal tables
+                user_tables = [table for table in table_names if table.lower() not in internal_tables]
+                
+                if not user_tables:
+                    return "erDiagram\n    NO_TABLES {\n        string message \"No user tables found in database\"\n    }"
                 
                 # Step 1: Collect tables and columns
-                for table_name in table_names:
+                for table_name in user_tables:
                     diagram += f"    {table_name} {{\n"
                     
                     # Get column details
@@ -68,6 +85,8 @@ class SchemaVisualizer:
                             col_type = "int"
                         elif "TEXT" in col_type:
                             col_type = "string"
+                        elif "DECIMAL" in col_type or "NUMERIC" in col_type:
+                            col_type = "decimal"
                         elif "REAL" in col_type or "FLOAT" in col_type:
                             col_type = "float"
                         elif "BLOB" in col_type:
@@ -92,7 +111,7 @@ class SchemaVisualizer:
                     diagram += "    }\n"
                 
                 # Step 2: Collect relationships
-                for table_name in table_names:
+                for table_name in user_tables:
                     try:
                         fks = inspector.get_foreign_keys(table_name)
                         for fk in fks:
@@ -101,6 +120,14 @@ class SchemaVisualizer:
                                 
                             parent_table = fk["referred_table"]
                             child_table = table_name
+                            
+                            # Only include relationships between user tables
+                            if parent_table.lower() in internal_tables:
+                                continue
+                            
+                            # Also check if parent table is in user_tables
+                            if parent_table not in user_tables:
+                                continue
                             
                             # Get column names
                             constrained_cols = fk.get("constrained_columns", [])
@@ -151,11 +178,28 @@ class SchemaVisualizer:
                 # Get all table names
                 table_names = inspector.get_table_names()
                 
-                if not table_names:
-                    return "mindmap\n  root((Database Schema))\n    NO_TABLES[No tables found in database]"
+                # Filter out internal application tables that shouldn't appear in user diagrams
+                internal_tables = {
+                    'database_connections',
+                    'query_history', 
+                    'session_info',
+                    'system_metadata',
+                    'employees',  # Example/demo table
+                    'conversation_history',
+                    'user_sessions',
+                    'application_settings',
+                    'migration_history',
+                    'audit_log'
+                }
+                
+                # Filter out internal tables
+                user_tables = [table for table in table_names if table.lower() not in internal_tables]
+                
+                if not user_tables:
+                    return "mindmap\n  root((Database Schema))\n    NO_TABLES[No user tables found in database]"
                 
                 # Add tables as branches
-                for table_name in table_names:
+                for table_name in user_tables:
                     sanitized_table = self._sanitize_table_name(table_name)
                     diagram += f"    {sanitized_table}\n"
                     
@@ -175,6 +219,8 @@ class SchemaVisualizer:
                             col_type = "int"
                         elif "TEXT" in col_type:
                             col_type = "string"
+                        elif "DECIMAL" in col_type or "NUMERIC" in col_type:
+                            col_type = "decimal"
                         elif "REAL" in col_type or "FLOAT" in col_type:
                             col_type = "float"
                         elif "BLOB" in col_type:
@@ -192,38 +238,6 @@ class SchemaVisualizer:
                         pk_flag = " (PK)" if column["name"] in pk_columns else ""
                         
                         diagram += f"      {col_name}: {col_type}{pk_flag}\n"
-                
-                # Add foreign key relationships as notes
-                diagram += "    Relationships\n"
-                relationship_count = 0
-                for table_name in table_names:
-                    try:
-                        fks = inspector.get_foreign_keys(table_name)
-                        for fk in fks:
-                            if not fk.get("referred_table"):
-                                continue
-                                
-                            parent_table = self._sanitize_table_name(fk["referred_table"])
-                            child_table = self._sanitize_table_name(table_name)
-                            
-                            # Get column names
-                            constrained_cols = fk.get("constrained_columns", [])
-                            referred_cols = fk.get("referred_columns", [])
-                            
-                            if constrained_cols and referred_cols:
-                                from_col = self._sanitize_column_name(constrained_cols[0])
-                                to_col = self._sanitize_column_name(referred_cols[0])
-                                
-                                diagram += f"      {child_table}.{from_col} → {parent_table}.{to_col}\n"
-                                relationship_count += 1
-                    
-                    except Exception as e:
-                        logger.warning(f"Could not process foreign keys for table {table_name}: {e}")
-                        continue
-                
-                # If no relationships found, add a note
-                if relationship_count == 0:
-                    diagram += "      No foreign key relationships found\n"
                 
                 return diagram
                 
