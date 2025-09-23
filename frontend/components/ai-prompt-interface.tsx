@@ -6,7 +6,7 @@ import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Send, Loader2, Sparkles, Database, BarChart, Zap, Upload, X, Image as ImageIcon } from "lucide-react"
+import { Send, Loader2, Sparkles, Database, BarChart, Zap, Upload, X, Image as ImageIcon, FileText, File } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
@@ -37,7 +37,9 @@ export function AiPromptInterface({
   const [error, setError] = useState<string | null>(null)
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
 
   // Cleanup image previews on component unmount
   useEffect(() => {
@@ -47,20 +49,21 @@ export function AiPromptInterface({
   }, [])
 
   const handleGenerate = async () => {
-    if (!prompt.trim() && selectedImages.length === 0) return
+    if (!prompt.trim() && selectedImages.length === 0 && selectedFiles.length === 0) return
 
     setIsGenerating(true)
     setError(null)
 
     // Notify parent about new query
-    onNewQuery?.(prompt.trim() || "Image-based query")
+    onNewQuery?.(prompt.trim() || "File-based query")
 
     try {
-      // If images are selected, use the solve endpoint
-      if (selectedImages.length > 0) {
+      // If images or files are selected, use the solve endpoint
+      if (selectedImages.length > 0 || selectedFiles.length > 0) {
+        const allFiles = [...selectedImages, ...selectedFiles]
         const result = await solveFromInput(
           prompt.trim() || undefined,
-          selectedImages
+          allFiles
         )
 
         if (result.success && result.response) {
@@ -76,9 +79,10 @@ export function AiPromptInterface({
           // Call solve response handler if provided
           onSolveResponse?.(result)
           
-          // Clear input and images after successful response
+          // Clear input and files after successful response
           setPrompt("")
           clearImages()
+          clearFiles()
         } else {
           setError(result.error || "Failed to process images")
         }
@@ -141,15 +145,36 @@ export function AiPromptInterface({
     setError(null)
   }
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const allowedTypes = [
+      'application/json',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+      'application/vnd.ms-excel'
+    ]
+    
+    const validFiles = files.filter(file => {
+      const isValidType = allowedTypes.includes(file.type) || 
+                         file.name.endsWith('.sql') || 
+                         file.name.endsWith('.json') ||
+                         file.name.endsWith('.xlsx') ||
+                         file.name.endsWith('.csv')
+      return isValidType
+    })
+
+    if (validFiles.length !== files.length) {
+      setError("Only .sql, .json, .xlsx, and .csv files are allowed")
+      return
+    }
+
+    setSelectedFiles(validFiles)
+    setError(null)
+  }
+
   const removeImage = (index: number) => {
-    const newImages = selectedImages.filter((_, i) => i !== index)
-    const newPreviews = imagePreviews.filter((_, i) => i !== index)
-    
-    // Clean up the removed preview URL
-    URL.revokeObjectURL(imagePreviews[index])
-    
-    setSelectedImages(newImages)
-    setImagePreviews(newPreviews)
+    removeFile(index, 'image')
   }
 
   const clearImages = () => {
@@ -160,8 +185,47 @@ export function AiPromptInterface({
     setImagePreviews([])
   }
 
+  const clearFiles = () => {
+    setSelectedFiles([])
+  }
+
+  const removeFile = (index: number, type: 'image' | 'file') => {
+    if (type === 'image') {
+      const newImages = selectedImages.filter((_, i) => i !== index)
+      const newPreviews = imagePreviews.filter((_, i) => i !== index)
+      
+      // Clean up the removed preview URL
+      URL.revokeObjectURL(imagePreviews[index])
+      
+      setSelectedImages(newImages)
+      setImagePreviews(newPreviews)
+    } else {
+      const newFiles = selectedFiles.filter((_, i) => i !== index)
+      setSelectedFiles(newFiles)
+    }
+  }
+
   const handleUploadClick = () => {
     fileInputRef.current?.click()
+  }
+
+  const handleDocumentUploadClick = () => {
+    documentInputRef.current?.click()
+  }
+
+  const getFileIcon = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase()
+    switch (extension) {
+      case 'sql':
+        return <Database className="h-4 w-4" />
+      case 'json':
+        return <FileText className="h-4 w-4" />
+      case 'xlsx':
+      case 'csv':
+        return <BarChart className="h-4 w-4" />
+      default:
+        return <File className="h-4 w-4" />
+    }
   }
 
   return (
@@ -187,44 +251,89 @@ export function AiPromptInterface({
               disabled={isGenerating || externalLoading}
             />
 
-            {/* Image Upload Section */}
+            {/* File Upload Section */}
             <div className="space-y-2">
               {/* Image Previews */}
               {selectedImages.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {imagePreviews.map((preview, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="relative group"
-                    >
-                      <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-lg overflow-hidden border-2 border-border bg-background">
-                        <img
-                          src={preview}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <button
-                        onClick={() => removeImage(index)}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-                        disabled={isGenerating || externalLoading}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Images</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {imagePreviews.map((preview, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="relative group"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </motion.div>
-                  ))}
+                        <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-lg overflow-hidden border-2 border-border bg-background">
+                          <img
+                            src={preview}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <button
+                          onClick={() => removeImage(index)}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                          disabled={isGenerating || externalLoading}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Hidden file input */}
+              {/* Document Files */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Documents</h4>
+                  <div className="space-y-1">
+                    {selectedFiles.map((file, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="flex items-center justify-between p-2 bg-background/50 rounded-md border border-border group"
+                      >
+                        <div className="flex items-center gap-2">
+                          {getFileIcon(file.name)}
+                          <span className="text-sm text-foreground">{file.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({(file.size / 1024).toFixed(1)} KB)
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => removeFile(index, 'file')}
+                          className="w-4 h-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                          disabled={isGenerating || externalLoading}
+                        >
+                          <X className="h-2 w-2" />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Hidden file inputs */}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/jpg"
                 multiple
                 onChange={handleImageUpload}
+                className="hidden"
+                disabled={isGenerating || externalLoading}
+              />
+              
+              <input
+                ref={documentInputRef}
+                type="file"
+                accept=".sql,.json,.xlsx,.csv,text/plain,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                multiple
+                onChange={handleFileUpload}
                 className="hidden"
                 disabled={isGenerating || externalLoading}
               />
@@ -239,30 +348,41 @@ export function AiPromptInterface({
                   disabled={isGenerating || externalLoading}
                   className="flex items-center gap-1"
                 >
+                  <ImageIcon className="h-3 w-3 lg:h-4 lg:w-4" />
+                  <span className="text-xs lg:text-sm">Images</span>
+                </Button>
+                
+                <Button
+                  onClick={handleDocumentUploadClick}
+                  variant="outline"
+                  size="sm"
+                  disabled={isGenerating || externalLoading}
+                  className="flex items-center gap-1"
+                >
                   <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
-                  <span className="text-xs lg:text-sm">Upload Images</span>
+                  <span className="text-xs lg:text-sm">Documents</span>
                 </Button>
                 
               </div>
               <Button
                 onClick={handleGenerate}
-                disabled={(!prompt.trim() && selectedImages.length === 0) || isGenerating || externalLoading}
+                disabled={(!prompt.trim() && selectedImages.length === 0 && selectedFiles.length === 0) || isGenerating || externalLoading}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm lg:text-base order-1 sm:order-2"
                 size="sm"
               >
                 {(isGenerating || externalLoading) ? (
                   <>
                     <Loader2 className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2 animate-spin" />
-                    <span>{selectedImages.length > 0 ? "Processing..." : "Generating..."}</span>
+                    <span>{(selectedImages.length > 0 || selectedFiles.length > 0) ? "Processing..." : "Generating..."}</span>
                   </>
                 ) : (
                   <>
-                    {selectedImages.length > 0 ? (
-                      <ImageIcon className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                    {(selectedImages.length > 0 || selectedFiles.length > 0) ? (
+                      <Upload className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
                     ) : (
                       <Send className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
                     )}
-                    <span>{selectedImages.length > 0 ? "Solve Images" : "Generate SQL"}</span>
+                    <span>{(selectedImages.length > 0 || selectedFiles.length > 0) ? "Process Files" : "Generate SQL"}</span>
                   </>
                 )}
               </Button>
@@ -298,7 +418,7 @@ export function AiPromptInterface({
               ))}
             </div>
             <span className="text-sm text-muted-foreground">
-              {selectedImages.length > 0 ? "AI is analyzing images..." : "AI is thinking..."}
+              {(selectedImages.length > 0 || selectedFiles.length > 0) ? "AI is analyzing files..." : "AI is thinking..."}
             </span>
           </motion.div>
         )}

@@ -15,6 +15,7 @@ from datetime import datetime
 from ..core.config import settings
 from .sql_examples import get_examples_context
 from .prompts import build_enhanced_prompt, get_error_guidance
+from ..utils.file_parser import FileParser, format_parsed_files_for_ai
 
 logger = logging.getLogger(__name__)
 
@@ -385,44 +386,56 @@ class GeminiSQLGenerator:
         prompt: Optional[str] = None,
         images: Optional[List[bytes]] = None,
         image_mimes: Optional[List[str]] = None,
+        documents: Optional[List[bytes]] = None,
+        document_info: Optional[List[Dict[str, Any]]] = None,
         schema: Optional[Dict[str, Any]] = None,
         max_retries: int = 2
     ) -> Tuple[str, Dict[str, Any]]:
         """
-        Solve questions from multimodal input (text + images)
+        Solve questions from multimodal input (text + images + documents)
         
         Args:
             prompt: Optional text prompt
             images: List of image bytes
             image_mimes: List of MIME types for images
+            documents: List of document bytes
+            document_info: List of document metadata (filename, type, etc.)
             schema: Database schema for SQL context
             max_retries: Maximum retry attempts
             
         Returns:
             Tuple of (response_text, metadata)
         """
-        if not prompt and not images:
-            raise ValueError("Either prompt or images must be provided")
+        if not prompt and not images and not documents:
+            raise ValueError("Either prompt, images, or documents must be provided")
         
         # Build multimodal content
         contents = []
         
         # Add system instruction
-        system_prompt = """You are an AI assistant that analyzes images containing database tables and data.
+        system_prompt = """You are an AI assistant that analyzes images and documents containing database tables and data.
 
 CORE PRINCIPLE: Only do what the user specifically requests. Do not solve questions unless explicitly asked.
 
 CAPABILITIES:
-1. Extract table structures and data from images
-2. Generate CREATE TABLE statements
-3. Generate INSERT statements with exact data from images  
-4. Answer specific SQL questions when asked
+1. Extract table structures and data from images and documents
+2. Generate CREATE TABLE statements from various file formats
+3. Generate INSERT statements with exact data from files
+4. Process SQL, JSON, CSV, Excel files and convert to database format
+5. Answer specific SQL questions when asked
+
+FILE PROCESSING RULES:
+- SQL files: Execute or analyze the provided SQL statements
+- JSON files: Convert JSON data to relational table format
+- CSV files: Create tables with headers as columns and rows as data
+- Excel files: Process each sheet as a separate table
+- Images: Extract table data visually
 
 RESPONSE FORMAT:
 Use this exact format for table creation requests:
 
-## Table Analysis
-[Brief description of tables found]
+## Data Analysis
+[Brief description of data sources found]
 
 ## SQL Code
 
@@ -502,6 +515,41 @@ IMPORTANT:
                     }]
                 })
         
+        # Add documents if provided
+        if documents and document_info:
+            # Parse document contents
+            parsed_files = []
+            for doc_bytes, doc_info in zip(documents, document_info):
+                parsed_file = FileParser.parse_file(
+                    content=doc_bytes,
+                    filename=doc_info.get('filename', 'unknown'),
+                    content_type=doc_info.get('content_type')
+                )
+                parsed_files.append(parsed_file)
+            
+            # Format parsed files for AI context
+            if parsed_files:
+                file_context = format_parsed_files_for_ai(parsed_files)
+                contents.append({
+                    "role": "user",
+                    "parts": [{
+                        "text": f"""DOCUMENT FILES PROVIDED:
+
+{file_context}
+
+CRITICAL INSTRUCTIONS FOR FILE PROCESSING:
+- Process the document files according to their type
+- For SQL files: Analyze or execute the statements as requested  
+- For JSON/CSV/Excel files: Convert to CREATE TABLE + INSERT statements
+- **IMPORTANT**: Insert ALL data from the files, not just samples
+- **IMPORTANT**: Create INSERT statements for EVERY row of data provided
+- **IMPORTANT**: Do not limit or truncate the data - include everything
+- Preserve exact data from files - do not invent additional data
+- Use proper table naming conventions (PascalCase)
+- Always end with SELECT statements to show the created data"""
+                    }]
+                })
+        
         # Generate response with retry logic
         try:
             response = await self._generate_multimodal_with_retry(contents, max_retries)
@@ -518,13 +566,24 @@ IMPORTANT:
                 "model": settings.gemini_model,
                 "timestamp": datetime.utcnow().isoformat(),
                 "has_images": bool(images),
+                "has_documents": bool(documents),
                 "has_text": bool(prompt),
                 "image_count": len(images) if images else 0,
+                "document_count": len(documents) if documents else 0,
+                "document_types": [info.get('extension', 'unknown') for info in document_info] if document_info else [],
                 "retries_used": 0,  # Could track this if needed
                 "raw_response_length": len(response_text)
             }
             
-            logger.info(f"Successfully generated multimodal response. Length: {len(response_text)}")
+            file_types = []
+            if images:
+                file_types.append(f"{len(images)} images")
+            if documents:
+                doc_types = [info.get('extension', 'unknown') for info in document_info] if document_info else []
+                file_types.append(f"{len(documents)} documents ({', '.join(doc_types)})")
+            
+            file_info = f" with {', '.join(file_types)}" if file_types else ""
+            logger.info(f"Successfully generated multimodal response{file_info}. Length: {len(response_text)}")
             return response_text, metadata
             
         except Exception as e:

@@ -725,43 +725,85 @@ async def solve_from_input(
     files: List[UploadFile] = File(default=[])
 ):
     """
-    Solve questions from multimodal input (text and/or images)
+    Solve questions from multimodal input (text and/or files)
     
     Accepts:
     - Text only: Just the prompt
-    - Images only: Upload image files
-    - Text + Images: Both prompt and image files
+    - Files only: Upload image or document files
+    - Text + Files: Both prompt and files
     
-    Supports PNG and JPEG images
+    Supported file types:
+    - Images: PNG, JPEG
+    - Documents: SQL, JSON, XLSX, CSV, TXT
     """
     try:
         # Validate input
         if not prompt and not files:
-            raise HTTPException(status_code=400, detail="Either prompt or image files must be provided")
+            raise HTTPException(status_code=400, detail="Either prompt or files must be provided")
         
-        # Validate and process image files
+        # Validate and process files
         images = []
         image_mimes = []
+        document_files = []
+        document_contents = []
+        
+        # Supported file types
+        image_types = ['image/png', 'image/jpeg', 'image/jpg']
+        document_types = [
+            'application/json',
+            'text/plain',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/csv',
+            'application/vnd.ms-excel'
+        ]
         
         for file in files:
-            # Check file type
-            if file.content_type not in ['image/png', 'image/jpeg', 'image/jpg']:
+            filename = file.filename or ""
+            content_type = file.content_type or ""
+            
+            # Determine file type by extension if content_type is unclear
+            file_extension = filename.lower().split('.')[-1] if '.' in filename else ""
+            
+            # Check if it's an image
+            if content_type in image_types:
+                # Read image content
+                try:
+                    content = await file.read()
+                    if len(content) == 0:
+                        raise HTTPException(status_code=400, detail=f"Empty file: {filename}")
+                    
+                    images.append(content)
+                    image_mimes.append(content_type)
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=f"Error reading image file {filename}: {str(e)}")
+            
+            # Check if it's a supported document
+            elif (content_type in document_types or 
+                  file_extension in ['sql', 'json', 'xlsx', 'csv', 'txt']):
+                
+                # Read document content
+                try:
+                    content = await file.read()
+                    if len(content) == 0:
+                        raise HTTPException(status_code=400, detail=f"Empty file: {filename}")
+                    
+                    document_files.append({
+                        'filename': filename,
+                        'content_type': content_type,
+                        'extension': file_extension,
+                        'size': len(content)
+                    })
+                    document_contents.append(content)
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=f"Error reading document file {filename}: {str(e)}")
+            
+            else:
                 raise HTTPException(
                     status_code=400, 
-                    detail=f"Unsupported file type: {file.content_type}. Only PNG and JPEG are allowed."
+                    detail=f"Unsupported file type: {content_type} for file {filename}. Supported types: images (PNG, JPEG) and documents (SQL, JSON, XLSX, CSV, TXT)."
                 )
-            
-            # Read file content
-            try:
-                content = await file.read()
-                if len(content) == 0:
-                    raise HTTPException(status_code=400, detail=f"Empty file: {file.filename}")
-                
-                images.append(content)
-                image_mimes.append(file.content_type)
-                
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Error reading file {file.filename}: {str(e)}")
         
         # Get current database schema for context
         try:
@@ -779,6 +821,8 @@ async def solve_from_input(
             prompt=prompt,
             images=images if images else None,
             image_mimes=image_mimes if image_mimes else None,
+            documents=document_contents if document_contents else None,
+            document_info=document_files if document_files else None,
             schema=schema,
             max_retries=2
         )
@@ -788,8 +832,10 @@ async def solve_from_input(
             "response": response_text,
             "metadata": {
                 **metadata,
-                "input_type": "multimodal" if images else "text_only",
+                "input_type": "multimodal" if (images or document_contents) else "text_only",
                 "image_count": len(images),
+                "document_count": len(document_contents),
+                "document_types": [f['extension'] for f in document_files] if document_files else [],
                 "has_text_prompt": bool(prompt),
                 "schema_available": bool(schema.get('tables'))
             },
@@ -806,7 +852,7 @@ async def solve_from_input(
             "timestamp": datetime.utcnow().isoformat(),
             "metadata": {
                 "input_type": "multimodal" if files else "text_only",
-                "image_count": len(files),
+                "file_count": len(files),
                 "has_text_prompt": bool(prompt)
             }
         }
