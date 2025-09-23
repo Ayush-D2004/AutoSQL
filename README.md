@@ -64,7 +64,7 @@ echo "GEMINI_MODEL=gemini-1.5-flash" >> .env
 cd frontend
 npm install
 
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local       #For local development
 ```
 
 ### Running the Application
@@ -95,7 +95,7 @@ LOG_LEVEL=INFO
 
 **Frontend (.env.local)**
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000       #For local development
 ```
 
 ### Google Gemini API Setup

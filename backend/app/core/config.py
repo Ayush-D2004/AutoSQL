@@ -42,6 +42,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3001"
     ]
     
+    # Production CORS origins (set via environment variables)
+    production_frontend_url: Optional[str] = None
+    
     # Database configuration
     database_url: str = "sqlite:///./autosql.db"
     database_echo: bool = False
@@ -91,6 +94,11 @@ class Settings(BaseSettings):
                 if origin not in origins:
                     origins.append(origin)
         
+        # Add production frontend URL if specified
+        if self.production_frontend_url:
+            if self.production_frontend_url not in origins:
+                origins.append(self.production_frontend_url)
+        
         if self.environment == "development":
             # Add additional development origins
             dev_origins = [
@@ -104,6 +112,16 @@ class Settings(BaseSettings):
             for origin in dev_origins:
                 if origin not in origins:
                     origins.append(origin)
+        else:
+            # In production, be more restrictive but allow common patterns
+            production_patterns = [
+                "https://*.vercel.app",
+                "https://*.netlify.app", 
+                "https://*.onrender.com"
+            ]
+            # Note: FastAPI doesn't support wildcards in CORS origins
+            # You'll need to set specific URLs via environment variables
+            
         return origins
 
 
