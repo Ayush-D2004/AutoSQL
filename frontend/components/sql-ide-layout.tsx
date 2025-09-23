@@ -65,8 +65,9 @@ export function SqlIdeLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   
   // Connection status state
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking')
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking' | 'starting'>('checking')
   const [lastConnectionCheck, setLastConnectionCheck] = useState<Date | null>(null)
+  const [isWakingUp, setIsWakingUp] = useState(false)
 
   // Mermaid renderer function
   const renderMermaidDiagram = async (mermaidCode: string, elementId: string) => {
@@ -103,26 +104,82 @@ export function SqlIdeLayout() {
     }
   }
 
-  // Connection status checking function
-  const checkConnectionStatus = async () => {
+  // Connection status checking function with wake-up mechanism
+  const checkConnectionStatus = async (isManualWakeUp = false) => {
     try {
       setConnectionStatus('checking')
       
       // Import the ping function dynamically to avoid any import issues
       const { ping } = await import('@/lib/api')
       
-      // Use a timeout to prevent hanging requests
+      // Use a shorter timeout for initial check
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout')), 5000)
+        setTimeout(() => reject(new Error('Timeout')), 3000)
       )
       
       await Promise.race([ping(), timeoutPromise])
       
       setConnectionStatus('connected')
       setLastConnectionCheck(new Date())
+      setIsWakingUp(false)
+    } catch (error) {
+      console.log('Initial ping failed, attempting to wake up backend...')
+      
+      // If this is not already a wake-up attempt and we're not manually waking up
+      if (!isWakingUp && !isManualWakeUp) {
+        await attemptBackendWakeUp()
+      } else {
+        setConnectionStatus('disconnected')
+        setLastConnectionCheck(new Date())
+        setIsWakingUp(false)
+      }
+    }
+  }
+
+  // Function to wake up the backend service
+  const attemptBackendWakeUp = async () => {
+    try {
+      setIsWakingUp(true)
+      setConnectionStatus('starting')
+      
+      const { ping } = await import('@/lib/api')
+      
+      // Send multiple wake-up pings with increasing timeouts
+      const wakeUpAttempts = [
+        { timeout: 10000, message: 'Waking up backend service...' },
+        { timeout: 15000, message: 'Backend is starting up...' },
+        { timeout: 20000, message: 'Almost ready...' }
+      ]
+      
+      for (const attempt of wakeUpAttempts) {
+        try {
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), attempt.timeout)
+          )
+          
+          await Promise.race([ping(), timeoutPromise])
+          
+          // Success! Backend is awake
+          setConnectionStatus('connected')
+          setLastConnectionCheck(new Date())
+          setIsWakingUp(false)
+          return
+          
+        } catch (error) {
+          // Continue to next attempt
+          console.log(`Wake-up attempt failed, trying again...`)
+        }
+      }
+      
+      // All attempts failed
+      setConnectionStatus('disconnected')
+      setLastConnectionCheck(new Date())
+      setIsWakingUp(false)
+      
     } catch (error) {
       setConnectionStatus('disconnected')
       setLastConnectionCheck(new Date())
+      setIsWakingUp(false)
     }
   }
 
@@ -190,6 +247,31 @@ export function SqlIdeLayout() {
   }
 
   const handleDirectExecution = async (sql: string) => {
+    // Check if backend is starting
+    if (connectionStatus === 'starting') {
+      const startingMessage: Message = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: 'The backend service is currently starting up. Please wait for it to be ready before executing queries.',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, startingMessage])
+      return
+    }
+    
+    if (connectionStatus === 'disconnected') {
+      const disconnectedMessage: Message = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: 'Backend service is currently unavailable. Attempting to wake it up... Please try again in a moment.',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, disconnectedMessage])
+      // Trigger wake-up attempt
+      checkConnectionStatus(true)
+      return
+    }
+    
     setIsExecuting(true)
     try {
       // Clear conversation memory before each execution to prevent issues
@@ -224,9 +306,14 @@ export function SqlIdeLayout() {
       setGeneratedQuery(sql)
       
     } catch (error) {
-      // Update connection status on API call failure
-      setConnectionStatus('disconnected')
-      setLastConnectionCheck(new Date())
+      // Check if this might be a connection issue and trigger wake-up
+      if (error instanceof Error && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
+        checkConnectionStatus()
+      } else {
+        // Update connection status on API call failure
+        setConnectionStatus('disconnected')
+        setLastConnectionCheck(new Date())
+      }
       
       console.error('Query execution failed:', error)
       const errorResult: ExecuteQueryResponse = {
@@ -347,6 +434,23 @@ export function SqlIdeLayout() {
         </Button>
       </div>
 
+      {/* Backend Starting Notification */}
+      <AnimatePresence>
+        {connectionStatus === 'starting' && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2"
+          >
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-sm font-medium">
+              {isWakingUp ? 'Waking up backend service... This may take 30-60 seconds.' : 'Backend is starting...'}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -416,7 +520,7 @@ export function SqlIdeLayout() {
           
           <div 
             className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded transition-colors" 
-            onClick={checkConnectionStatus} 
+            onClick={() => checkConnectionStatus(true)} 
             title={`Click to refresh connection status. Last checked: ${lastConnectionCheck?.toLocaleTimeString() || 'Never'}`}
           >
             <div 
@@ -425,6 +529,8 @@ export function SqlIdeLayout() {
                   ? 'bg-green-500 shadow-green-200 shadow-sm' 
                   : connectionStatus === 'disconnected' 
                   ? 'bg-red-500 shadow-red-200 shadow-sm' 
+                  : connectionStatus === 'starting'
+                  ? 'bg-blue-500 animate-pulse shadow-blue-200 shadow-sm'
                   : 'bg-yellow-500 animate-pulse shadow-yellow-200 shadow-sm'
               }`}
             ></div>
@@ -433,9 +539,11 @@ export function SqlIdeLayout() {
                 ? 'Connected' 
                 : connectionStatus === 'disconnected' 
                 ? 'Disconnected' 
+                : connectionStatus === 'starting'
+                ? 'Backend Starting...'
                 : 'Checking...'}
             </span>
-            {lastConnectionCheck && connectionStatus !== 'checking' && (
+            {lastConnectionCheck && connectionStatus !== 'checking' && connectionStatus !== 'starting' && (
               <span className="text-xs text-muted-foreground/60">
                 {lastConnectionCheck.toLocaleTimeString()}
               </span>
@@ -581,6 +689,31 @@ export function SqlIdeLayout() {
                       setMessages(prev => [...prev, userMessage])
                       
                       try {
+                        // Check if backend is starting
+                        if (connectionStatus === 'starting') {
+                          const startingMessage: Message = {
+                            id: Date.now().toString(),
+                            type: 'assistant',
+                            content: 'The backend service is currently starting up. Please wait a moment and try again.',
+                            timestamp: new Date()
+                          }
+                          setMessages(prev => [...prev, startingMessage])
+                          return
+                        }
+                        
+                        if (connectionStatus === 'disconnected') {
+                          const disconnectedMessage: Message = {
+                            id: Date.now().toString(),
+                            type: 'assistant',
+                            content: 'Backend service is currently unavailable. Attempting to wake it up... Please try again in a moment.',
+                            timestamp: new Date()
+                          }
+                          setMessages(prev => [...prev, disconnectedMessage])
+                          // Trigger wake-up attempt
+                          checkConnectionStatus(true)
+                          return
+                        }
+                        
                         setIsGenerating(true)
                         
                         // Include current SQL context in the prompt
@@ -611,13 +744,26 @@ export function SqlIdeLayout() {
                           throw new Error(response.error || 'Failed to generate query')
                         }
                       } catch (error) {
-                        const errorMessage: Message = {
-                          id: Date.now().toString(),
-                          type: 'assistant',
-                          content: `Sorry, I couldn't process your request: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                          timestamp: new Date()
+                        // Check if this might be a connection issue
+                        if (error instanceof Error && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
+                          // Trigger connection check which might start wake-up process
+                          checkConnectionStatus()
+                          const errorMessage: Message = {
+                            id: Date.now().toString(),
+                            type: 'assistant',
+                            content: 'Connection to backend lost. Attempting to reconnect... Please try again in a moment.',
+                            timestamp: new Date()
+                          }
+                          setMessages(prev => [...prev, errorMessage])
+                        } else {
+                          const errorMessage: Message = {
+                            id: Date.now().toString(),
+                            type: 'assistant',
+                            content: `Sorry, I couldn't process your request: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                            timestamp: new Date()
+                          }
+                          setMessages(prev => [...prev, errorMessage])
                         }
-                        setMessages(prev => [...prev, errorMessage])
                       } finally {
                         setIsGenerating(false)
                       }
