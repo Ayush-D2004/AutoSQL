@@ -64,7 +64,7 @@ echo "GEMINI_MODEL=gemini-1.5-flash" >> .env
 cd frontend
 npm install
 
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local       #For local development
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local    
 ```
 
 ### Running the Application
