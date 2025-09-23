@@ -1,6 +1,8 @@
 # AutoSQL 🚀
 
 AutoSQL is an AI-powered SQL query generator that transforms natural language prompts into executable SQL queries. Built with modern web technologies and Google's Gemini AI, it provides an intuitive interface for database operations, schema visualization, and multimodal data processing.
+**Link to AutoSQL :** https://autosql-1.onrender.com
+
 
 ## ✨ Features
 
