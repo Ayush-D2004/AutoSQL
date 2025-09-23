@@ -69,9 +69,12 @@ app = FastAPI(
 )
 
 # Configure CORS
+cors_origins = settings.get_cors_origins()
+print(f"CORS Origins configured: {cors_origins}")  # Debug log
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.get_cors_origins(),  # Use method that includes dev origins
+    allow_origins=cors_origins,  # Use explicit list of origins
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

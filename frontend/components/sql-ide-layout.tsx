@@ -63,6 +63,10 @@ export function SqlIdeLayout() {
   const [showMindmap, setShowMindmap] = useState(false)
   const [mindmapView, setMindmapView] = useState<'diagram' | 'code'>('diagram')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  
+  // Connection status state
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking')
+  const [lastConnectionCheck, setLastConnectionCheck] = useState<Date | null>(null)
 
   // Mermaid renderer function
   const renderMermaidDiagram = async (mermaidCode: string, elementId: string) => {
@@ -98,6 +102,40 @@ export function SqlIdeLayout() {
       }
     }
   }
+
+  // Connection status checking function
+  const checkConnectionStatus = async () => {
+    try {
+      setConnectionStatus('checking')
+      
+      // Import the ping function dynamically to avoid any import issues
+      const { ping } = await import('@/lib/api')
+      
+      // Use a timeout to prevent hanging requests
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      )
+      
+      await Promise.race([ping(), timeoutPromise])
+      
+      setConnectionStatus('connected')
+      setLastConnectionCheck(new Date())
+    } catch (error) {
+      setConnectionStatus('disconnected')
+      setLastConnectionCheck(new Date())
+    }
+  }
+
+  // Effect to check connection status on mount and periodically
+  useEffect(() => {
+    // Initial connection check
+    checkConnectionStatus()
+    
+    // Set up periodic connection checks every 30 seconds
+    const interval = setInterval(checkConnectionStatus, 30000)
+    
+    return () => clearInterval(interval)
+  }, [])
 
   // Effect to render diagram when ER data changes and diagram view is active
   useEffect(() => {
@@ -163,6 +201,10 @@ export function SqlIdeLayout() {
         save_to_history: true
       })
       
+      // Update connection status on successful API call
+      setConnectionStatus('connected')
+      setLastConnectionCheck(new Date())
+      
       setQueryResults(result)
       setActiveTab("table")
       
@@ -182,6 +224,10 @@ export function SqlIdeLayout() {
       setGeneratedQuery(sql)
       
     } catch (error) {
+      // Update connection status on API call failure
+      setConnectionStatus('disconnected')
+      setLastConnectionCheck(new Date())
+      
       console.error('Query execution failed:', error)
       const errorResult: ExecuteQueryResponse = {
         success: false,
@@ -266,6 +312,12 @@ export function SqlIdeLayout() {
   }
 
   const handleSolveResponse = (result: SolveResponse) => {
+    // Update connection status on successful API call
+    if (result.success) {
+      setConnectionStatus('connected')
+      setLastConnectionCheck(new Date())
+    }
+    
     // Add the solve response as a message
     const solveMessage: Message = {
       id: Date.now().toString(),
@@ -362,9 +414,32 @@ export function SqlIdeLayout() {
             </a>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-xs lg:text-sm text-muted-foreground">Connected</span>
+          <div 
+            className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded transition-colors" 
+            onClick={checkConnectionStatus} 
+            title={`Click to refresh connection status. Last checked: ${lastConnectionCheck?.toLocaleTimeString() || 'Never'}`}
+          >
+            <div 
+              className={`w-2 h-2 rounded-full transition-colors duration-300 ${
+                connectionStatus === 'connected' 
+                  ? 'bg-green-500 shadow-green-200 shadow-sm' 
+                  : connectionStatus === 'disconnected' 
+                  ? 'bg-red-500 shadow-red-200 shadow-sm' 
+                  : 'bg-yellow-500 animate-pulse shadow-yellow-200 shadow-sm'
+              }`}
+            ></div>
+            <span className="text-xs lg:text-sm text-muted-foreground">
+              {connectionStatus === 'connected' 
+                ? 'Connected' 
+                : connectionStatus === 'disconnected' 
+                ? 'Disconnected' 
+                : 'Checking...'}
+            </span>
+            {lastConnectionCheck && connectionStatus !== 'checking' && (
+              <span className="text-xs text-muted-foreground/60">
+                {lastConnectionCheck.toLocaleTimeString()}
+              </span>
+            )}
           </div>
         </div>
       </div>
