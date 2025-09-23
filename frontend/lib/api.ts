@@ -4,7 +4,8 @@
  * Simplified client focused on AI SQL generation and execution
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Remove trailing slash from API URL to prevent double slashes
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 export interface AIQueryRequest {
   prompt: string

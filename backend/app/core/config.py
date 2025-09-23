@@ -113,14 +113,14 @@ class Settings(BaseSettings):
                 if origin not in origins:
                     origins.append(origin)
         else:
-            # In production, be more restrictive but allow common patterns
-            production_patterns = [
-                "https://*.vercel.app",
-                "https://*.netlify.app", 
-                "https://*.onrender.com"
+            # In production, add common Vercel patterns
+            production_origins = [
+                "https://auto-sql-frontend-ayushdhoble.vercel.app",  # Your specific Vercel URL
+                "https://autosql.vercel.app",  # Common pattern
             ]
-            # Note: FastAPI doesn't support wildcards in CORS origins
-            # You'll need to set specific URLs via environment variables
+            for origin in production_origins:
+                if origin not in origins:
+                    origins.append(origin)
             
         return origins
 
