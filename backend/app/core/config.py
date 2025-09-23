@@ -113,10 +113,11 @@ class Settings(BaseSettings):
                 if origin not in origins:
                     origins.append(origin)
         else:
-            # In production, add common Vercel patterns
+            # In production, add the actual Vercel URLs
             production_origins = [
-                "https://auto-sql-frontend-ayushdhoble.vercel.app",  # Your specific Vercel URL
+                "https://auto-sql-frontend-ayushdhoble.vercel.app",  # Your actual Vercel URL
                 "https://autosql.vercel.app",  # Common pattern
+                "https://autosql-frontend.vercel.app",  # Alternative pattern
             ]
             for origin in production_origins:
                 if origin not in origins:

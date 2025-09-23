@@ -70,7 +70,8 @@ app = FastAPI(
 
 # Configure CORS
 cors_origins = settings.get_cors_origins()
-print(f"CORS Origins configured: {cors_origins}")  # Debug log
+print(f"🔧 CORS Origins configured: {cors_origins}")  # Enhanced debug log
+print(f"🌍 Environment: {settings.environment}")
 
 app.add_middleware(
     CORSMiddleware,
